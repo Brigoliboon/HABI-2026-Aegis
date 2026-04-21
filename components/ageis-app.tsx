@@ -73,6 +73,11 @@ type SearchSuggestion = {
 
 const MAP_STYLES: MapStyleOption[] = [
   {
+    id: "ageis",
+    label: "AGEIS",
+    styleUrl: "mapbox://styles/boonjefferson/cmo5moe2k000n01rcahy17o82",
+  },
+  {
     id: "streets",
     label: "Streets",
     styleUrl: "mapbox://styles/mapbox/streets-v12",
@@ -143,7 +148,7 @@ export default function AGEISApp() {
   const [activeView, setActiveView] = useState<ViewKey>("analytics");
   const [panelOpen, setPanelOpen] = useState(true);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
-  const [mapStyleId, setMapStyleId] = useState<MapStyleOption["id"]>("streets");
+  const [mapStyleId, setMapStyleId] = useState<MapStyleOption["id"]>("ageis");
 
   const [layersOpen, setLayersOpen] = useState(false);
   const [layers, setLayers] = useState<LayerToggles>({

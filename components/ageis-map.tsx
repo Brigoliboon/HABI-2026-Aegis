@@ -7,7 +7,8 @@ import type { MarkerData } from "@/types/locations";
 import { ACTIVE_HOUSEHOLDS_DATASET_API_PATH } from "@/lib/datasets";
 import { fetchGeoJsonFeatureCollection } from "@/lib/geojson-client";
 
-mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+const STYLE = "mapbox://styles/boonjefferson/cmo5moe2k000n01rcahy17o82";
 
 type Props = {
   mapStyle: string;
@@ -103,11 +104,14 @@ export default function AGEISMap({
     if (!mapContainerRef.current) return;
     if (mapRef.current) return;
 
+    const initialStyle = mapStyle?.trim() ? mapStyle : STYLE;
+    lastStyleRef.current = initialStyle;
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       center: [125.0, 7.8],
       zoom: 8,
-      style: mapStyle,
+      style: initialStyle,
     });
 
     mapRef.current = map;
@@ -325,9 +329,11 @@ export default function AGEISMap({
     const map = mapRef.current;
     if (!map) return;
 
-    if (lastStyleRef.current !== mapStyle) {
-      lastStyleRef.current = mapStyle;
-      map.setStyle(mapStyle);
+    const nextStyle = mapStyle?.trim() ? mapStyle : STYLE;
+
+    if (lastStyleRef.current !== nextStyle) {
+      lastStyleRef.current = nextStyle;
+      map.setStyle(nextStyle);
     }
   }, [mapStyle]);
 
