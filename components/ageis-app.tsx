@@ -4,21 +4,26 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   FiBarChart2,
-  FiCheck,
   FiChevronLeft,
   FiChevronRight,
   FiFilter,
   FiHexagon,
   FiLayers,
   FiMoon,
-  FiSearch,
   FiSettings,
   FiSun,
-  FiX,
 } from "react-icons/fi";
 
-import MapboxMap, { type ClusterSelection } from "./MapboxMap";
-import type { MarkerData } from "./types";
+import AGEISMap from "./ageis-map";
+import type { ClusterSelection } from "./cluster-info-card";
+import ClusterInfoCard from "./cluster-info-card";
+import SearchBar from "./search-bar";
+import FiltersPanel from "./filters-panel";
+import AnalyticsPanel from "./analytics-panel";
+import LayersPanel from "./layers-panel";
+import { ACTIVE_HOUSEHOLDS_DATASET_API_PATH } from "@/lib/datasets";
+import { fetchGeoJsonFeatureCollection } from "@/lib/geojson-client";
+import type { MarkerData } from "@/types/locations";
 
 type HouseholdFilters = {
   timeFrameStartYear: string;
@@ -64,24 +69,6 @@ type SearchSuggestion = {
   lat: number;
   zoom?: number;
   bbox?: [number, number, number, number];
-};
-
-const LAYER_ORDER: LayerKey[] = ["base", "risk", "income", "education", "children"];
-
-const LAYER_LABELS: Record<LayerKey, string> = {
-  base: "Households",
-  risk: "Risk coloring",
-  income: "Income heatmap",
-  education: "Education heatmap",
-  children: "Children heatmap",
-};
-
-const LAYER_DESCRIPTIONS: Record<LayerKey, string> = {
-  base: "Clustered household points; click for details",
-  risk: "Colors household icons by risk_level (requires Households)",
-  income: "Heatmap weighted by monthly_income",
-  education: "Heatmap weighted by education attainment",
-  children: "Heatmap weighted by school_age_children",
 };
 
 const MAP_STYLES: MapStyleOption[] = [
@@ -152,7 +139,7 @@ function normalizeYearRange(next: Pick<HouseholdFilters, "timeFrameStartYear" | 
   };
 }
 
-export default function MapApp() {
+export default function AGEISApp() {
   const [activeView, setActiveView] = useState<ViewKey>("analytics");
   const [panelOpen, setPanelOpen] = useState(true);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
@@ -266,7 +253,11 @@ export default function MapApp() {
     setInfoCardOpen(true);
   };
 
-  const handleViewAnalyticsClick = () => undefined;
+  const handleViewAnalyticsClick = () => {
+    setActiveView("analytics");
+    setPanelOpen(true);
+    closeInfoCard();
+  };
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
@@ -460,13 +451,7 @@ export default function MapApp() {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        const response = await fetch("/api/geojson/val-31-ver2");
-        if (!response.ok) return;
-        const data = (await response.json()) as unknown;
-
-        if (!data || typeof data !== "object") return;
-        const fc = data as { type?: unknown; features?: unknown };
-        if (fc.type !== "FeatureCollection" || !Array.isArray(fc.features)) return;
+        const fc = await fetchGeoJsonFeatureCollection(ACTIVE_HOUSEHOLDS_DATASET_API_PATH);
 
         const barangays = new Set<string>();
         const years = new Set<string>();
@@ -574,8 +559,6 @@ export default function MapApp() {
     return MAP_STYLES.find((s) => s.id === mapStyleId)?.styleUrl ?? MAP_STYLES[0].styleUrl;
   }, [mapStyleId]);
 
-  const normalizedQuery = searchQuery.trim();
-
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (householdFilters.timeFrameStartYear.trim().length > 0 || householdFilters.timeFrameEndYear.trim().length > 0)
@@ -632,28 +615,9 @@ export default function MapApp() {
     isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
   );
 
-  const inputClass = cx(
-    "h-10 w-full rounded-full border px-10 text-sm outline-none transition",
-    isDark
-      ? "border-white/10 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500 focus:border-white/20"
-      : "border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-500 focus:border-neutral-300"
-  );
-
   const selectClass = cx(
     "h-10 w-full rounded-lg border px-3 text-sm outline-none",
     isDark ? "border-white/10 bg-neutral-900 text-neutral-100" : "border-neutral-200 bg-white text-neutral-900"
-  );
-
-  const suggestionContainerClass = cx(
-    "mt-2 overflow-hidden rounded-xl border",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
-  );
-
-  const suggestionRowClass = cx(
-    "w-full border-b px-3 py-3 text-left transition last:border-b-0",
-    isDark
-      ? "border-white/5 hover:bg-white/5"
-      : "border-neutral-100 hover:bg-black/5"
   );
 
   const floatingButtonClass = cx(
@@ -662,32 +626,6 @@ export default function MapApp() {
       ? "border-white/10 bg-neutral-950 text-neutral-200 hover:bg-white/5"
       : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
   );
-
-  const floatingPanelClass = cx(
-    "w-80 rounded-xl border p-3",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
-  );
-
-  const popoverPanelClass = cx(
-    "mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-xl border p-3",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
-  );
-
-  const layerRowClass = (enabled: boolean) =>
-    cx(
-      "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition",
-      isDark
-        ? "border-white/10 bg-neutral-900/50 hover:bg-white/5"
-        : "border-neutral-200 bg-white hover:bg-black/5",
-      enabled && (isDark ? "border-white/20 bg-white/10" : "border-neutral-300 bg-black/5")
-    );
-
-  const layerCheckboxClass = (enabled: boolean) =>
-    cx(
-      "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border",
-      isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white",
-      enabled && (isDark ? "border-white/30 bg-white/10" : "border-neutral-400 bg-black/5")
-    );
 
   const toggleLayer = (key: LayerKey) => {
     setLayers((prev) => {
@@ -715,15 +653,6 @@ export default function MapApp() {
       };
     });
   };
-
-  const clearAllFilters = () =>
-    setHouseholdFilters({
-      timeFrameStartYear: "",
-      timeFrameEndYear: "",
-      barangay: "",
-      minMonthlyIncome: "",
-      maxMonthlyIncome: "",
-    });
 
   const filteredHouseholdRows = useMemo(() => {
     const yearStartRaw = householdFilters.timeFrameStartYear.trim();
@@ -794,7 +723,7 @@ export default function MapApp() {
   return (
     <div className={containerClass}>
       <div className="absolute inset-0">
-        <MapboxMap
+        <AGEISMap
           selectedLocation={selectedLocation}
           mapStyle={mapStyleUrl}
           onViewportChange={(viewport) => {
@@ -809,261 +738,42 @@ export default function MapApp() {
       </div>
 
       {selectedInfoCard && (
-        <div
-          className={cx(
-            "absolute right-4 top-20 z-20",
-            "transition duration-200 ease-out",
-            infoCardOpen ? "opacity-100 translate-y-0" : "pointer-events-none opacity-0 translate-y-2"
-          )}
-        >
-          <div className={cx(floatingPanelClass, "max-h-[calc(100vh-6rem)] overflow-auto")}
-          >
-            {selectedClusterInfo ? (
-              <>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div
-                      className={cx(
-                        "text-sm font-semibold",
-                        isDark ? "text-neutral-100" : "text-neutral-900"
-                      )}
-                    >
-                      Selected {selectedClusterInfo.level === "city" ? "Municipality / City" : "Barangay"}
-                    </div>
-                    <div
-                      className={cx(
-                        "mt-1 truncate text-sm",
-                        isDark ? "text-neutral-200" : "text-neutral-800"
-                      )}
-                    >
-                      {selectedClusterInfo.title}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className={cx(
-                      "grid h-9 w-9 place-items-center rounded-lg border transition",
-                      isDark
-                        ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                        : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-                    )}
-                    onClick={closeInfoCard}
-                    aria-label="Close info card"
-                    title="Close"
-                  >
-                    <FiX className="h-5 w-5" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div
-                    className={cx(
-                      "rounded-xl border p-3",
-                      isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
-                    )}
-                  >
-                    <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                      Households
-                    </div>
-                    <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                      {selectedClusterInfo.households == null ? "—" : selectedClusterInfo.households.toLocaleString()}
-                    </div>
-                  </div>
-
-                  {selectedClusterInfo.level === "city" ? (
-                    <div
-                      className={cx(
-                        "rounded-xl border p-3",
-                        isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
-                      )}
-                    >
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        Barangays
-                      </div>
-                      <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {selectedClusterInfo.barangayCount == null
-                          ? "—"
-                          : selectedClusterInfo.barangayCount.toLocaleString()}
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className={cx(
-                        "rounded-xl border p-3",
-                        isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
-                      )}
-                    >
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        High risk
-                      </div>
-                      <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {selectedClusterInfo.highRisk == null ? "—" : selectedClusterInfo.highRisk.toLocaleString()}
-                      </div>
-                    </div>
-                  )}
-
-                  <div
-                    className={cx(
-                      "rounded-xl border p-3",
-                      isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
-                    )}
-                  >
-                    <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                      Avg monthly income
-                    </div>
-                    <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                      {selectedClusterInfo.avgIncome == null ? "—" : selectedClusterInfo.avgIncome.toLocaleString()}
-                    </div>
-                  </div>
-
-                  <div
-                    className={cx(
-                      "rounded-xl border p-3",
-                      isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white"
-                    )}
-                  >
-                    <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                      Total children
-                    </div>
-                    <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                      {selectedClusterInfo.totalChildren == null
-                        ? "—"
-                        : selectedClusterInfo.totalChildren.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-
-                {selectedClusterInfo.level === "city" && (
-                  <div className="mt-3">
-                    <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                      High risk households
-                    </div>
-                    <div className={cx("mt-1 text-xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                      {selectedClusterInfo.highRisk == null ? "—" : selectedClusterInfo.highRisk.toLocaleString()}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  className={cx(
-                    "mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
-                    isDark
-                      ? "border-white/10 bg-neutral-950 text-neutral-200 hover:bg-white/5"
-                      : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-                  )}
-                  onClick={handleViewAnalyticsClick}
-                >
-                  <FiBarChart2 className="h-4 w-4" aria-hidden="true" />
-                  <span>View analytics</span>
-                </button>
-              </>
-            ) : null}
-          </div>
-        </div>
+        <ClusterInfoCard
+          clusterInfo={selectedClusterInfo}
+          isOpen={infoCardOpen}
+          onClose={closeInfoCard}
+          onViewAnalyticsClick={handleViewAnalyticsClick}
+          isDark={isDark}
+        />
       )}
 
       <div className={topCenterClass}>
         <div className="relative">
           <div className="flex items-start gap-2">
-            <div className="relative min-w-0 flex-1">
-              <FiSearch
-                className={cx(
-                  "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2",
-                  isDark ? "text-neutral-500" : "text-neutral-500"
-                )}
-                aria-hidden="true"
-              />
-              <input
-                value={searchQuery}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setSearchQuery(next);
-
-                  if (!next.trim()) {
-                    clearSearchWork();
-                    setSearchSuggestions([]);
-                    return;
-                  }
-
-                  scheduleSearch(next);
-                }}
-                onFocus={() => {
-                  setIsSearchFocused(true);
-                  if (searchQuery.trim().length >= 2) {
-                    scheduleSearch(searchQuery);
-                  }
-                }}
-                onBlur={() =>
-                  setTimeout(() => {
-                    setIsSearchFocused(false);
-                    clearSearchWork();
-                    setSearchSuggestions([]);
-                  }, 150)
+            <SearchBar
+              query={searchQuery}
+              onQueryChange={(query) => {
+                setSearchQuery(query);
+                if (!query.trim()) {
+                  clearSearchWork();
+                  setSearchSuggestions([]);
+                  return;
                 }
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  if (searchSuggestions.length === 0) return;
-                  e.preventDefault();
-                  selectSuggestion(searchSuggestions[0]);
-                }}
-                placeholder="Search the map"
-                className={inputClass}
-                aria-label="Search"
-              />
-              {searchQuery.length > 0 && (
-                <button
-                  type="button"
-                  className={cx(
-                    "absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full",
-                    isDark ? "text-neutral-300 hover:bg-white/10" : "text-neutral-600 hover:bg-black/5"
-                  )}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setSearchQuery("");
-                    clearSearchWork();
-                    setSearchSuggestions([]);
-                  }}
-                  aria-label="Clear search"
-                >
-                  <FiX className="h-4 w-4" aria-hidden="true" />
-                </button>
-              )}
-
-              {isSearchFocused && normalizedQuery.length > 0 && (
-                <div className={suggestionContainerClass}>
-                  {searchSuggestions.slice(0, 8).map((suggestion) => (
-                    <button
-                      key={suggestion.id}
-                      type="button"
-                      className={suggestionRowClass}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        selectSuggestion(suggestion);
-                      }}
-                    >
-                      <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {suggestion.title}
-                      </div>
-                      <div className={cx("text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                        {suggestion.subtitle}
-                      </div>
-                    </button>
-                  ))}
-
-                  <div className={cx("px-3 py-2 text-xs", isDark ? "text-neutral-400" : "text-neutral-500")}>
-                    {searchIsLoading
-                      ? "Searching…"
-                      : normalizedQuery.length < 2
-                        ? "Type at least 2 characters"
-                        : searchSuggestions.length === 0
-                          ? "No results"
-                          : `${searchSuggestions.length} result${searchSuggestions.length === 1 ? "" : "s"}`}
-                  </div>
-                </div>
-              )}
-            </div>
+                scheduleSearch(query);
+              }}
+              isFocused={isSearchFocused}
+              onFocusChange={(focused) => {
+                setIsSearchFocused(focused);
+                if (!focused) {
+                  clearSearchWork();
+                  setSearchSuggestions([]);
+                }
+              }}
+              suggestions={searchSuggestions}
+              isLoading={searchIsLoading}
+              onSuggestionSelect={selectSuggestion}
+              isDark={isDark}
+            />
 
             <div className="relative">
               <button
@@ -1093,194 +803,15 @@ export default function MapApp() {
               </button>
 
               {filtersMounted && (
-                <div
-                  className={cx(
-                    "absolute right-0 top-full",
-                    "origin-top-right transition duration-200 ease-out",
-                    filtersOpen
-                      ? "opacity-100 translate-y-0 scale-100"
-                      : "pointer-events-none opacity-0 -translate-y-1 scale-95"
-                  )}
-                  aria-hidden={!filtersOpen}
-                >
-                  <div className={popoverPanelClass}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        Filters
-                      </div>
-                      <button
-                        type="button"
-                        className={cx(
-                          "grid h-9 w-9 place-items-center rounded-lg border transition",
-                          isDark
-                            ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                            : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-                        )}
-                        onClick={closeFilters}
-                        aria-label="Close filters"
-                      >
-                        <FiX className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                    </div>
-
-                    <div className="mt-3 space-y-3">
-                      <div>
-                        <div className={cx("mb-1 text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                          Time frame
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <div
-                              className={cx(
-                                "mb-1 text-[11px] font-medium",
-                                isDark ? "text-neutral-400" : "text-neutral-600"
-                              )}
-                            >
-                              From
-                            </div>
-                            <select
-                              className={selectClass}
-                              value={householdFilters.timeFrameStartYear}
-                              onChange={(e) =>
-                                setHouseholdFilters((prev) => {
-                                  const next = {
-                                    ...prev,
-                                    timeFrameStartYear: e.target.value,
-                                  };
-                                  return {
-                                    ...next,
-                                    ...normalizeYearRange({
-                                      timeFrameStartYear: next.timeFrameStartYear,
-                                      timeFrameEndYear: next.timeFrameEndYear,
-                                    }),
-                                  };
-                                })
-                              }
-                              aria-label="Time frame from"
-                            >
-                              <option value="">Any</option>
-                              {yearOptions.map((year) => (
-                                <option key={year} value={year}>
-                                  {year}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <div
-                              className={cx(
-                                "mb-1 text-[11px] font-medium",
-                                isDark ? "text-neutral-400" : "text-neutral-600"
-                              )}
-                            >
-                              To
-                            </div>
-                            <select
-                              className={selectClass}
-                              value={householdFilters.timeFrameEndYear}
-                              onChange={(e) =>
-                                setHouseholdFilters((prev) => {
-                                  const next = {
-                                    ...prev,
-                                    timeFrameEndYear: e.target.value,
-                                  };
-                                  return {
-                                    ...next,
-                                    ...normalizeYearRange({
-                                      timeFrameStartYear: next.timeFrameStartYear,
-                                      timeFrameEndYear: next.timeFrameEndYear,
-                                    }),
-                                  };
-                                })
-                              }
-                              aria-label="Time frame to"
-                            >
-                              <option value="">Any</option>
-                              {yearOptions.map((year) => (
-                                <option key={year} value={year}>
-                                  {year}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={cx("mb-1 text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                          Barangay
-                        </div>
-                        <select
-                          className={selectClass}
-                          value={householdFilters.barangay}
-                          onChange={(e) =>
-                            setHouseholdFilters((prev) => ({
-                              ...prev,
-                              barangay: e.target.value,
-                            }))
-                          }
-                          aria-label="Barangay"
-                        >
-                          <option value="">All barangays</option>
-                          {barangayOptions.map((name) => (
-                            <option key={name} value={name}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <div className={cx("mb-1 text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                          Monthly income range
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            className={selectClass}
-                            value={householdFilters.minMonthlyIncome}
-                            onChange={(e) =>
-                              setHouseholdFilters((prev) => ({
-                                ...prev,
-                                minMonthlyIncome: e.target.value,
-                              }))
-                            }
-                            inputMode="numeric"
-                            placeholder="Min"
-                            aria-label="Minimum monthly income"
-                          />
-                          <input
-                            className={selectClass}
-                            value={householdFilters.maxMonthlyIncome}
-                            onChange={(e) =>
-                              setHouseholdFilters((prev) => ({
-                                ...prev,
-                                maxMonthlyIncome: e.target.value,
-                              }))
-                            }
-                            inputMode="numeric"
-                            placeholder="Max"
-                            aria-label="Maximum monthly income"
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={cx(
-                          "flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition",
-                          isDark
-                            ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-white/5"
-                            : "border-neutral-200 bg-white text-neutral-700 hover:bg-black/5"
-                        )}
-                        onClick={clearAllFilters}
-                      >
-                        <FiX className="h-4 w-4" aria-hidden="true" />
-                        <span>Clear filters</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                <FiltersPanel
+                  filters={householdFilters}
+                  onFiltersChange={setHouseholdFilters}
+                  yearOptions={yearOptions}
+                  barangayOptions={barangayOptions}
+                  isOpen={filtersOpen}
+                  onClose={closeFilters}
+                  isDark={isDark}
+                />
               )}
             </div>
           </div>
@@ -1389,63 +920,7 @@ export default function MapApp() {
 
             <div className="flex-1 overflow-auto px-3 pb-3">
               {activeView === "analytics" && (
-                <div className={surfaceClass}>
-                  <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                    Analytics
-                  </div>
-
-                  <div className={cx("mt-1 text-sm", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                    Summary for the current filters.
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className={cx("rounded-xl border p-3", isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white")}>
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        Households
-                      </div>
-                      <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {analytics.total}
-                      </div>
-                    </div>
-                    <div className={cx("rounded-xl border p-3", isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white")}>
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        Avg monthly income
-                      </div>
-                      <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {analytics.avgIncome == null ? "—" : analytics.avgIncome.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className={cx("rounded-xl border p-3", isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white")}>
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        High risk
-                      </div>
-                      <div className={cx("mt-1 text-2xl font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                        {analytics.highRisk}
-                      </div>
-                    </div>
-                    <div className={cx("rounded-xl border p-3", isDark ? "border-white/10 bg-neutral-900/50" : "border-neutral-200 bg-white")}>
-                      <div className={cx("text-xs font-semibold", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                        Top barangays
-                      </div>
-                      <div className={cx("mt-1 space-y-1 text-sm", isDark ? "text-neutral-200" : "text-neutral-800")}>
-                        {analytics.topBarangays.length === 0 ? (
-                          <div className={cx("text-sm", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                            —
-                          </div>
-                        ) : (
-                          analytics.topBarangays.map(([name, count]) => (
-                            <div key={name} className="flex items-center justify-between gap-2">
-                              <div className="truncate">{name}</div>
-                              <div className={cx("text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                                {count}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AnalyticsPanel analytics={analytics} isDark={isDark} />
               )}
 
               {activeView === "insights" && (
@@ -1554,63 +1029,12 @@ export default function MapApp() {
         )}
       >
         {layersOpen ? (
-          <div className={floatingPanelClass}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <FiLayers className="h-4 w-4" aria-hidden="true" />
-                <span>Layers</span>
-              </div>
-              <button
-                type="button"
-                className={cx(
-                  "grid h-9 w-9 place-items-center rounded-lg border transition",
-                  isDark
-                    ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                    : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-                )}
-                onClick={() => setLayersOpen(false)}
-                aria-label="Close layers"
-              >
-                <FiX className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {LAYER_ORDER.map((key) => {
-                const enabled = layers[key];
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={layerRowClass(enabled)}
-                    onClick={() => toggleLayer(key)}
-                    aria-pressed={enabled}
-                  >
-                    <div className={layerCheckboxClass(enabled)} aria-hidden="true">
-                      {enabled && <FiCheck className="h-4 w-4" aria-hidden="true" />}
-                    </div>
-                    <div className="min-w-0">
-                      <div
-                        className={cx(
-                          "text-sm font-semibold",
-                          isDark ? "text-neutral-100" : "text-neutral-900"
-                        )}
-                      >
-                        {LAYER_LABELS[key]}
-                      </div>
-                      <div className={cx("mt-1 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                        {LAYER_DESCRIPTIONS[key]}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className={cx("mt-3 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-              Toggle multiple layers to overlap them.
-            </div>
-          </div>
+          <LayersPanel
+            layers={layers}
+            onLayerToggle={toggleLayer}
+            onClose={() => setLayersOpen(false)}
+            isDark={isDark}
+          />
         ) : (
           <button
             type="button"

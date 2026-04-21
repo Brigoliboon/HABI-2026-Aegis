@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import type { MarkerData } from "./types";
+import type { MarkerData } from "@/types/locations";
+import { ACTIVE_HOUSEHOLDS_DATASET_API_PATH } from "@/lib/datasets";
+import { fetchGeoJsonFeatureCollection } from "@/lib/geojson-client";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
 
@@ -48,14 +50,14 @@ export type HouseholdSelection = {
   properties: Record<string, unknown>;
 };
 
-const HOUSEHOLDS_DATASET_URL = "/api/geojson/val-31-ver2";
+const HOUSEHOLDS_DATASET_URL = ACTIVE_HOUSEHOLDS_DATASET_API_PATH;
 
 const CITY_CLUSTER_MAX_ZOOM = 11;
 const BARANGAY_CLUSTER_MIN_ZOOM = 11;
 const BARANGAY_CLUSTER_MAX_ZOOM = 13;
 const HOUSEHOLD_POINTS_MIN_ZOOM = 13;
 
-export default function MapboxMap({
+export default function AGEISMap({
   mapStyle,
   selectedLocation,
   onViewportChange,
@@ -140,7 +142,7 @@ export default function MapboxMap({
         if (!geoDataRef.current || geoDataRef.current.url !== HOUSEHOLDS_DATASET_URL) {
           geoDataRef.current = {
             url: HOUSEHOLDS_DATASET_URL,
-            data: await fetchGeoJson(HOUSEHOLDS_DATASET_URL),
+            data: await fetchGeoJsonFeatureCollection(HOUSEHOLDS_DATASET_URL),
           };
           didFitBoundsRef.current = false;
         }
@@ -731,18 +733,6 @@ function parseNumberOrNull(value: string): number | null {
   return Number.isFinite(num) ? num : null;
 }
 
-async function fetchGeoJson(url: string): Promise<GeoJSON.FeatureCollection> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Failed to fetch GeoJSON");
-  const data = (await response.json()) as unknown;
-
-  if (!isFeatureCollection(data)) {
-    throw new Error("Invalid GeoJSON");
-  }
-
-  return data;
-}
-
 function addOrUpdateGeoJsonLayer(map: mapboxgl.Map, data: GeoJSON.FeatureCollection) {
   removeLegacyProximityClustering(map);
 
@@ -1203,8 +1193,3 @@ function featureCollectionBounds(
   ];
 }
 
-function isFeatureCollection(value: unknown): value is GeoJSON.FeatureCollection {
-  if (!value || typeof value !== "object") return false;
-  const v = value as { type?: unknown; features?: unknown };
-  return v.type === "FeatureCollection" && Array.isArray(v.features);
-}
