@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AGEIS",
-  description: "AGEIS maps",
+  title: "Aegis: AI-Driven Geospatial Education Decision Support System",
+  description: "AI-Driven Geospatial Education Decision Support System",
   icons: {
     icon: [{ url: "/AGEIS_logo.svg", type: "image/svg+xml" }],
   },
@@ -30,7 +30,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full w-full antialiased`}
     >
-      <body className="h-full w-full m-0 p-0">{children}</body>
+      <body className="min-h-full h-full w-full m-0 p-0 flex flex-col">{children}</body>
     </html>
   );
 }

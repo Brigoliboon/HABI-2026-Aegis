@@ -1,18 +1,29 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { MarkerData } from "@/types/locations";
 import { ACTIVE_HOUSEHOLDS_DATASET_API_PATH } from "@/lib/datasets";
 import { fetchGeoJsonFeatureCollection } from "@/lib/geojson-client";
+import { LAYER_CATEGORIES, POPUP_PROPERTY_KEYS } from "@/lib/mapConstants";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const STYLE = "mapbox://styles/boonjefferson/cmo5moe2k000n01rcahy17o82";
 
+type StyleLayer = {
+  id: string;
+  type: string;
+};
+
+const STYLE_CATEGORY_LAYER_IDS = Array.from(new Set(LAYER_CATEGORIES.flatMap((c) => c.layers)));
+
 type Props = {
   mapStyle: string;
   selectedLocation: MarkerData | null;
+  enableStyleLayerFeatures?: boolean;
+  activeStyleLayerIds?: string[];
+  onStyleLayersChange?: (layers: StyleLayer[], initiallyActiveLayerIds: string[]) => void;
   onViewportChange?: (viewport: {
     center: [number, number];
     bounds: { west: number; south: number; east: number; north: number };
@@ -61,6 +72,9 @@ const HOUSEHOLD_POINTS_MIN_ZOOM = 13;
 export default function AGEISMap({
   mapStyle,
   selectedLocation,
+  enableStyleLayerFeatures,
+  activeStyleLayerIds,
+  onStyleLayersChange,
   onViewportChange,
   onClusterSelect,
   householdFilters,
@@ -76,6 +90,145 @@ export default function AGEISMap({
   const didFitBoundsRef = useRef(false);
   const filtersRef = useRef(householdFilters);
   const layersRef = useRef(layers);
+  const enableStyleLayerFeaturesRef = useRef(Boolean(enableStyleLayerFeatures));
+  const activeStyleLayerIdsRef = useRef<string[] | undefined>(activeStyleLayerIds);
+  const onStyleLayersChangeRef = useRef<Props["onStyleLayersChange"]>(onStyleLayersChange);
+  const styleLayerClickHandlersRef = useRef<
+    Array<{ layerId: string; onClick: (e: mapboxgl.MapLayerMouseEvent) => void }>
+  >([]);
+
+  useEffect(() => {
+    onStyleLayersChangeRef.current = onStyleLayersChange;
+  }, [onStyleLayersChange]);
+
+  const clearStyleLayerHandlers = useCallback((map: mapboxgl.Map) => {
+    for (const handler of styleLayerClickHandlersRef.current) {
+      map.off("click", handler.layerId, handler.onClick);
+    }
+    styleLayerClickHandlersRef.current = [];
+  }, []);
+
+  const applyCategorizedStyleLayerVisibility = useCallback((
+    map: mapboxgl.Map,
+    activeIds: string[] | undefined
+  ) => {
+    if (!enableStyleLayerFeaturesRef.current) return;
+    if (!activeIds) return;
+
+    const activeSet = new Set(activeIds);
+    for (const layerId of STYLE_CATEGORY_LAYER_IDS) {
+      if (!map.getLayer(layerId)) continue;
+      map.setLayoutProperty(layerId, "visibility", activeSet.has(layerId) ? "visible" : "none");
+    }
+  }, []);
+
+  const emitStyleLayers = useCallback((map: mapboxgl.Map) => {
+    if (!enableStyleLayerFeaturesRef.current) return;
+
+    const styleLayers = map.getStyle().layers ?? [];
+    const payload: StyleLayer[] = styleLayers.map((layer) => ({ id: layer.id, type: layer.type }));
+
+    const initiallyActive: string[] = [];
+    for (const layerId of STYLE_CATEGORY_LAYER_IDS) {
+      if (!map.getLayer(layerId)) continue;
+      const vis = map.getLayoutProperty(layerId, "visibility");
+      if (vis !== "none") initiallyActive.push(layerId);
+    }
+
+    onStyleLayersChangeRef.current?.(payload, initiallyActive);
+  }, []);
+
+  const registerCategorizedStyleLayerPopups = useCallback((map: mapboxgl.Map) => {
+    clearStyleLayerHandlers(map);
+
+    if (!enableStyleLayerFeaturesRef.current) return;
+
+    for (const layerId of STYLE_CATEGORY_LAYER_IDS) {
+      if (!map.getLayer(layerId)) continue;
+
+      const onClick = (e: mapboxgl.MapLayerMouseEvent) => {
+        const feature = e.features?.[0];
+        if (!feature) return;
+        if (feature.geometry?.type !== "Point") return;
+
+        const coordsRaw = feature.geometry.coordinates;
+        if (!Array.isArray(coordsRaw) || coordsRaw.length < 2) return;
+        const lng = Number(coordsRaw[0]);
+        const lat = Number(coordsRaw[1]);
+        if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+
+        const props = (feature.properties ?? {}) as Record<string, unknown>;
+        const titleRaw = props[POPUP_PROPERTY_KEYS.TITLE];
+        const title = typeof titleRaw === "string" ? titleRaw : titleRaw == null ? "" : String(titleRaw);
+        const populationRaw = props[POPUP_PROPERTY_KEYS.DESCRIPTION[0]];
+        const population =
+          typeof populationRaw === "string" ? populationRaw : populationRaw == null ? "" : String(populationRaw);
+        const placeRaw = props[POPUP_PROPERTY_KEYS.DESCRIPTION[1]];
+        const place = typeof placeRaw === "string" ? placeRaw : placeRaw == null ? "" : String(placeRaw);
+
+        const container = document.createElement("div");
+        container.style.color = "black";
+
+        if (title.trim()) {
+          const strong = document.createElement("strong");
+          strong.textContent = title;
+          container.appendChild(strong);
+        }
+
+        if (population.trim()) {
+          const p = document.createElement("p");
+          p.style.margin = "6px 0 0";
+          p.textContent = `Population: ${population}`;
+          container.appendChild(p);
+        }
+
+        if (place.trim()) {
+          const p = document.createElement("p");
+          p.style.margin = "6px 0 0";
+          p.textContent = `Type: ${place}`;
+          container.appendChild(p);
+        }
+
+        if (!container.textContent?.trim()) return;
+
+        new mapboxgl.Popup().setLngLat([lng, lat]).setDOMContent(container).addTo(map);
+      };
+
+      map.on("click", layerId, onClick);
+      styleLayerClickHandlersRef.current.push({ layerId, onClick });
+    }
+  }, [clearStyleLayerHandlers]);
+
+  useEffect(() => {
+    enableStyleLayerFeaturesRef.current = Boolean(enableStyleLayerFeatures);
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (!enableStyleLayerFeaturesRef.current) {
+      clearStyleLayerHandlers(map);
+      return;
+    }
+
+    emitStyleLayers(map);
+    registerCategorizedStyleLayerPopups(map);
+    applyCategorizedStyleLayerVisibility(map, activeStyleLayerIdsRef.current);
+  }, [
+    applyCategorizedStyleLayerVisibility,
+    clearStyleLayerHandlers,
+    emitStyleLayers,
+    enableStyleLayerFeatures,
+    registerCategorizedStyleLayerPopups,
+  ]);
+
+  useEffect(() => {
+    activeStyleLayerIdsRef.current = activeStyleLayerIds;
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    applyCategorizedStyleLayerVisibility(map, activeStyleLayerIds);
+  }, [activeStyleLayerIds, applyCategorizedStyleLayerVisibility]);
 
   useEffect(() => {
     filtersRef.current = householdFilters;
@@ -252,12 +405,19 @@ export default function AGEISMap({
     map.on("load", () => {
       void ensureGeoLayers().finally(() => {
         emitViewport();
+        emitStyleLayers(map);
+        registerCategorizedStyleLayerPopups(map);
+        applyCategorizedStyleLayerVisibility(map, activeStyleLayerIdsRef.current);
       });
     });
 
     // After any style change, custom sources/layers are removed.
     map.on("style.load", () => {
-      void ensureGeoLayers();
+      void ensureGeoLayers().finally(() => {
+        emitStyleLayers(map);
+        registerCategorizedStyleLayerPopups(map);
+        applyCategorizedStyleLayerVisibility(map, activeStyleLayerIdsRef.current);
+      });
     });
 
     map.on("moveend", () => {
@@ -308,7 +468,25 @@ export default function AGEISMap({
       if (!currentMap) return;
 
       const feature = getFirstInteractiveFeature(e);
-      currentMap.getCanvas().style.cursor = feature ? "pointer" : "";
+      if (feature) {
+        currentMap.getCanvas().style.cursor = "pointer";
+        return;
+      }
+
+      if (enableStyleLayerFeaturesRef.current) {
+        const queryLayers = STYLE_CATEGORY_LAYER_IDS.filter((layerId) => Boolean(currentMap.getLayer(layerId)));
+        if (queryLayers.length > 0) {
+          try {
+            const styleFeatures = currentMap.queryRenderedFeatures(e.point, { layers: queryLayers });
+            currentMap.getCanvas().style.cursor = styleFeatures.length > 0 ? "pointer" : "";
+            return;
+          } catch {
+            // ignore
+          }
+        }
+      }
+
+      currentMap.getCanvas().style.cursor = "";
     });
 
     map.on("mouseleave", () => {

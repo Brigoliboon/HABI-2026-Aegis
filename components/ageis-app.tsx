@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   FiBarChart2,
   FiChevronLeft,
   FiChevronRight,
   FiFilter,
-  FiHexagon,
   FiLayers,
   FiMoon,
   FiSettings,
@@ -21,8 +20,11 @@ import SearchBar from "./search-bar";
 import FiltersPanel from "./filters-panel";
 import AnalyticsPanel from "./analytics-panel";
 import LayersPanel from "./layers-panel";
+import PlaceSelectorPanel from "./place-selector-panel";
+import OptionsPanel from "./options-panel";
 import { ACTIVE_HOUSEHOLDS_DATASET_API_PATH } from "@/lib/datasets";
 import { fetchGeoJsonFeatureCollection } from "@/lib/geojson-client";
+import { LAYER_CATEGORIES, type LayerCategory } from "@/lib/mapConstants";
 import type { MarkerData } from "@/types/locations";
 
 type HouseholdFilters = {
@@ -37,7 +39,7 @@ type LayerKey = "base" | "risk" | "income" | "education" | "children";
 
 type LayerToggles = Record<LayerKey, boolean>;
 
-type ViewKey = "analytics" | "insights" | "settings";
+type ViewKey = "filter" | "analytics" | "settings";
 
 type ThemeMode = "dark" | "light";
 
@@ -69,6 +71,11 @@ type SearchSuggestion = {
   lat: number;
   zoom?: number;
   bbox?: [number, number, number, number];
+};
+
+type StyleLayer = {
+  id: string;
+  type: string;
 };
 
 const MAP_STYLES: MapStyleOption[] = [
@@ -150,6 +157,12 @@ export default function AGEISApp() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [mapStyleId, setMapStyleId] = useState<MapStyleOption["id"]>("ageis");
 
+  const [styleLayers, setStyleLayers] = useState<StyleLayer[]>([]);
+  const [activeStyleLayerIds, setActiveStyleLayerIds] = useState<Set<string>>(() => new Set());
+  const [expandedStyleLayerCategories, setExpandedStyleLayerCategories] = useState<Set<string>>(
+    () => new Set(LAYER_CATEGORIES.map((c) => c.name))
+  );
+
   const [layersOpen, setLayersOpen] = useState(false);
   const [layers, setLayers] = useState<LayerToggles>({
     base: true,
@@ -158,6 +171,9 @@ export default function AGEISApp() {
     education: false,
     children: false,
   });
+
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<{ region: string | null; province: string | null; barangay: string | null }>({ region: null, province: null, barangay: null });
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filtersMounted, setFiltersMounted] = useState(false);
@@ -264,7 +280,9 @@ export default function AGEISApp() {
     closeInfoCard();
   };
 
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || "";
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+  const isAgeisStyle = mapStyleId === "ageis";
 
   const buildLocalSearchSuggestions = (query: string): SearchSuggestion[] => {
     const normalized = query.trim().toLowerCase();
@@ -564,6 +582,39 @@ export default function AGEISApp() {
     return MAP_STYLES.find((s) => s.id === mapStyleId)?.styleUrl ?? MAP_STYLES[0].styleUrl;
   }, [mapStyleId]);
 
+  const styleLayerIdSet = useMemo(() => new Set(styleLayers.map((layer) => layer.id)), [styleLayers]);
+
+  const toggleStyleLayer = (layerId: string) => {
+    if (!styleLayerIdSet.has(layerId)) return;
+    setActiveStyleLayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(layerId)) next.delete(layerId);
+      else next.add(layerId);
+      return next;
+    });
+  };
+
+  const toggleAllStyleLayersInCategory = (category: LayerCategory, checked: boolean) => {
+    setActiveStyleLayerIds((prev) => {
+      const next = new Set(prev);
+      for (const layerId of category.layers) {
+        if (!styleLayerIdSet.has(layerId)) continue;
+        if (checked) next.add(layerId);
+        else next.delete(layerId);
+      }
+      return next;
+    });
+  };
+
+  const toggleStyleLayerCategoryExpanded = (categoryName: string) => {
+    setExpandedStyleLayerCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoryName)) next.delete(categoryName);
+      else next.add(categoryName);
+      return next;
+    });
+  };
+
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (householdFilters.timeFrameStartYear.trim().length > 0 || householdFilters.timeFrameEndYear.trim().length > 0)
@@ -581,8 +632,8 @@ export default function AGEISApp() {
   const railItems = useMemo(
     () =>
       [
+        { key: "filter" as const, label: "Filter", icon: FiFilter },
         { key: "analytics" as const, label: "Analytics", icon: FiBarChart2 },
-        { key: "insights" as const, label: "Insights", icon: FiHexagon },
       ],
     []
   );
@@ -725,12 +776,27 @@ export default function AGEISApp() {
 
   const selectedClusterInfo: ClusterSelection | null = selectedInfoCard ? selectedInfoCard.data : null;
 
+  const handleStyleLayersChange = useCallback(
+    (nextLayers: StyleLayer[], initiallyActive: string[]) => {
+      if (mapStyleId !== "ageis") return;
+      setStyleLayers(nextLayers);
+      setActiveStyleLayerIds((prev) => {
+        if (prev.size > 0) return prev;
+        return new Set(initiallyActive);
+      });
+    },
+    [mapStyleId]
+  );
+
   return (
     <div className={containerClass}>
       <div className="absolute inset-0">
         <AGEISMap
           selectedLocation={selectedLocation}
           mapStyle={mapStyleUrl}
+          enableStyleLayerFeatures={isAgeisStyle}
+          activeStyleLayerIds={isAgeisStyle ? [...activeStyleLayerIds] : undefined}
+          onStyleLayersChange={handleStyleLayersChange}
           onViewportChange={(viewport) => {
             mapViewportRef.current = viewport;
           }}
@@ -819,9 +885,30 @@ export default function AGEISApp() {
                 />
               )}
             </div>
+
+            <button
+              type="button"
+              className={cx(
+                "flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition",
+                isDark
+                  ? "border-white/10 bg-neutral-950 text-neutral-200 hover:bg-white/5"
+                  : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
+              )}
+              onClick={() => setOptionsOpen(true)}
+              aria-label="Open options"
+              aria-expanded={optionsOpen}
+            >
+              <span>Plot Options</span>
+            </button>
           </div>
         </div>
       </div>
+
+      <OptionsPanel
+        isOpen={optionsOpen}
+        onClose={() => setOptionsOpen(false)}
+        isDark={isDark}
+      />
 
       <aside className={overlayClass}>
         <div className={railClass}>
@@ -902,9 +989,6 @@ export default function AGEISApp() {
               <div className="flex items-center justify-between gap-2">
                 <div className="leading-tight">
                   <div className="text-sm font-semibold">AGEIS</div>
-                  <div className={cx("text-xs", isDark ? "text-neutral-400" : "text-neutral-500")}>
-                    Valencia City households
-                  </div>
                 </div>
 
                 <button
@@ -923,24 +1007,30 @@ export default function AGEISApp() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto px-3 pb-3">
-              {activeView === "analytics" && (
-                <AnalyticsPanel analytics={analytics} isDark={isDark} />
+            <div className="flex-1 overflow-auto px-3 pb-3 space-y-3">
+              {activeView === "filter" && (
+                <>
+                  <PlaceSelectorPanel
+                    barangayOptions={barangayOptions}
+                    selectedPlace={selectedPlace}
+                    onPlaceChange={setSelectedPlace}
+                    isDark={isDark}
+                  />
+                </>
               )}
 
-              {activeView === "insights" && (
-                <div className={surfaceClass}>
-                  <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                    Insights
-                  </div>
-                  <div className={cx("mt-1 text-sm", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                    Reserved for future AI-driven features.
-                  </div>
-
-                  <div className={cx("mt-4 text-sm", isDark ? "text-neutral-300" : "text-neutral-700")}>
-                    This is a placeholder view.
-                  </div>
-                </div>
+              {activeView === "analytics" && (
+                <>
+                  <PlaceSelectorPanel
+                    barangayOptions={barangayOptions}
+                    selectedPlace={selectedPlace}
+                    onPlaceChange={setSelectedPlace}
+                    isDark={isDark}
+                  />
+                  {selectedPlace.barangay && (
+                    <AnalyticsPanel analytics={analytics} isDark={isDark} />
+                  )}
+                </>
               )}
 
               {activeView === "settings" && (
@@ -1039,6 +1129,14 @@ export default function AGEISApp() {
             onLayerToggle={toggleLayer}
             onClose={() => setLayersOpen(false)}
             isDark={isDark}
+            showStyleLayersSection={isAgeisStyle}
+            styleLayers={styleLayers}
+            activeStyleLayerIds={activeStyleLayerIds}
+            expandedStyleLayerCategories={expandedStyleLayerCategories}
+            styleLayerCategories={LAYER_CATEGORIES}
+            onToggleStyleLayer={toggleStyleLayer}
+            onToggleAllStyleLayersInCategory={toggleAllStyleLayersInCategory}
+            onToggleStyleLayerCategoryExpanded={toggleStyleLayerCategoryExpanded}
           />
         ) : (
           <button

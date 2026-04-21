@@ -1,16 +1,31 @@
 "use client";
 
 import { FiCheck, FiLayers, FiX } from "react-icons/fi";
+import type { LayerCategory } from "@/lib/mapConstants";
 
 type LayerKey = "base" | "risk" | "income" | "education" | "children";
 
 type LayerToggles = Record<LayerKey, boolean>;
+
+type StyleLayer = {
+  id: string;
+  type: string;
+};
 
 type Props = {
   layers: LayerToggles;
   onLayerToggle: (key: LayerKey) => void;
   onClose: () => void;
   isDark: boolean;
+
+  showStyleLayersSection?: boolean;
+  styleLayers?: StyleLayer[];
+  activeStyleLayerIds?: Set<string>;
+  expandedStyleLayerCategories?: Set<string>;
+  styleLayerCategories?: LayerCategory[];
+  onToggleStyleLayer?: (layerId: string) => void;
+  onToggleAllStyleLayersInCategory?: (category: LayerCategory, checked: boolean) => void;
+  onToggleStyleLayerCategoryExpanded?: (categoryName: string) => void;
 };
 
 const LAYER_ORDER: LayerKey[] = ["base", "risk", "income", "education", "children"];
@@ -40,6 +55,14 @@ export default function LayersPanel({
   onLayerToggle,
   onClose,
   isDark,
+  showStyleLayersSection,
+  styleLayers,
+  activeStyleLayerIds,
+  expandedStyleLayerCategories,
+  styleLayerCategories,
+  onToggleStyleLayer,
+  onToggleAllStyleLayersInCategory,
+  onToggleStyleLayerCategoryExpanded,
 }: Props) {
   const floatingPanelClass = cx(
     "w-80 rounded-xl border p-3",
@@ -84,40 +107,121 @@ export default function LayersPanel({
         </button>
       </div>
 
-      <div className="mt-3 space-y-2">
-        {LAYER_ORDER.map((key) => {
-          const enabled = layers[key];
-          return (
-            <button
-              key={key}
-              type="button"
-              className={layerRowClass(enabled)}
-              onClick={() => onLayerToggle(key)}
-              aria-pressed={enabled}
-            >
-              <div className={layerCheckboxClass(enabled)} aria-hidden="true">
-                {enabled && <FiCheck className="h-4 w-4" aria-hidden="true" />}
-              </div>
-              <div className="min-w-0">
-                <div
-                  className={cx(
-                    "text-sm font-semibold",
-                    isDark ? "text-neutral-100" : "text-neutral-900"
-                  )}
-                >
-                  {LAYER_LABELS[key]}
+      <div className="mt-3 max-h-[calc(100vh-10rem)] overflow-auto pr-1">
+        <div className="space-y-2">
+          {LAYER_ORDER.map((key) => {
+            const enabled = layers[key];
+            return (
+              <button
+                key={key}
+                type="button"
+                className={layerRowClass(enabled)}
+                onClick={() => onLayerToggle(key)}
+                aria-pressed={enabled}
+              >
+                <div className={layerCheckboxClass(enabled)} aria-hidden="true">
+                  {enabled && <FiCheck className="h-4 w-4" aria-hidden="true" />}
                 </div>
-                <div className={cx("mt-1 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-                  {LAYER_DESCRIPTIONS[key]}
+                <div className="min-w-0">
+                  <div
+                    className={cx(
+                      "text-sm font-semibold",
+                      isDark ? "text-neutral-100" : "text-neutral-900"
+                    )}
+                  >
+                    {LAYER_LABELS[key]}
+                  </div>
+                  <div className={cx("mt-1 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
+                    {LAYER_DESCRIPTIONS[key]}
+                  </div>
                 </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
 
-      <div className={cx("mt-3 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
-        Toggle multiple layers to overlap them.
+        <div className={cx("mt-3 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}> 
+          Toggle multiple layers to overlap them.
+        </div>
+
+      {showStyleLayersSection && styleLayers && activeStyleLayerIds && expandedStyleLayerCategories && styleLayerCategories && (
+        <div className="mt-4 border-t pt-4">
+          <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}> 
+            Style layers
+          </div>
+          <div className={cx("mt-1 text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}> 
+            These control layers built into the AGEIS map style.
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {styleLayerCategories.map((category) => {
+              const existingLayerIds = category.layers.filter((layerId) => styleLayers.some((l) => l.id === layerId));
+              if (existingLayerIds.length === 0) return null;
+
+              const isExpanded = expandedStyleLayerCategories.has(category.name);
+              const activeCount = existingLayerIds.filter((layerId) => activeStyleLayerIds.has(layerId)).length;
+              const categoryActive = activeCount === existingLayerIds.length;
+              const categoryPartial = activeCount > 0 && activeCount < existingLayerIds.length;
+
+              return (
+                <div key={category.name} className={cx("rounded-xl border", isDark ? "border-white/10" : "border-neutral-200")}>
+                  <button
+                    type="button"
+                    className={cx(
+                      "flex w-full items-center gap-2 px-3 py-2 text-left transition",
+                      isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                    )}
+                    onClick={() => onToggleStyleLayerCategoryExpanded?.(category.name)}
+                    aria-expanded={isExpanded}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={categoryActive}
+                      ref={(el) => {
+                        if (!el) return;
+                        el.indeterminate = categoryPartial;
+                      }}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onToggleAllStyleLayersInCategory?.(category, !categoryActive);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4"
+                      aria-label={`Toggle ${category.name}`}
+                    />
+                    <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>{category.name}</div>
+                    <div className={cx("ml-auto text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>{isExpanded ? "Hide" : "Show"}</div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className={cx("border-t px-3 py-2", isDark ? "border-white/10" : "border-neutral-200")}>
+                      <div className="space-y-2">
+                        {existingLayerIds.map((layerId) => (
+                          <label
+                            key={layerId}
+                            className={cx(
+                              "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition",
+                              isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={activeStyleLayerIds.has(layerId)}
+                              onChange={() => onToggleStyleLayer?.(layerId)}
+                              className="h-4 w-4"
+                            />
+                            <span className={cx("min-w-0 truncate text-sm", isDark ? "text-neutral-200" : "text-neutral-800")}>{layerId}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
