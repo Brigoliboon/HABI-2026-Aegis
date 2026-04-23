@@ -1,27 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
-  FiBarChart2,
   FiChevronLeft,
   FiChevronRight,
   FiClipboard,
   FiFile,
-  FiFilter,
   FiInfo,
   FiLock,
   FiMoon,
   FiSettings,
   FiSun,
-  FiLayers,
 } from "react-icons/fi";
-
-import { FiCheck } from "react-icons/fi";
-import AnalyticsPanel from "./analytics-panel";
-import PlaceSelectorPanel from "./place-selector-panel";
-
-type ViewKey = "layers" | "analytics" | "settings";
 
 type ThemeMode = "dark" | "light";
 
@@ -32,22 +22,12 @@ type MapStyleOption = {
   preview: string;
 };
 
-type AnalyticsData = {
-  total: number;
-  avgIncome: number | null;
-  highRisk: number;
-  topBarangays: Array<[string, number]>;
-};
-
 type Props = {
-  activeView: ViewKey;
   panelOpen: boolean;
   isDark: boolean;
-  analytics: AnalyticsData;
   themeMode: ThemeMode;
   mapStyleId: MapStyleOption["id"];
   mapStyles: MapStyleOption[];
-  onViewChange: (view: ViewKey) => void;
   onPanelToggle: (open: boolean) => void;
   onThemeChange: (mode: ThemeMode) => void;
   onMapStyleChange: (id: MapStyleOption["id"]) => void;
@@ -57,21 +37,12 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-const railItems: Array<{ key: ViewKey; label: string; icon: typeof FiBarChart2 }> = [
-  { key: "layers", label: "Layers", icon: FiLayers },
-  { key: "analytics", label: "Analytics", icon: FiBarChart2 },
-  { key: "settings", label: "Settings", icon: FiSettings },
-];
-
 export default function Sidebar({
-  activeView,
   panelOpen,
   isDark,
-  analytics,
   themeMode,
   mapStyleId,
   mapStyles,
-  onViewChange,
   onPanelToggle,
   onThemeChange,
   onMapStyleChange,
@@ -110,27 +81,21 @@ export default function Sidebar({
   );
 
   return (
-    <aside className="flex h-full z-20 pointer-events-none">
-      <div className={cx(railClass, "pointer-events-auto")}>
+    <aside className="relative flex h-full z-20">
+      <div className={railClass}>
         <nav className="flex w-full flex-1 flex-col gap-1">
-          {railItems.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              className={cx(
-                railButtonClass(activeView === key),
-                "border-l-2 border-transparent",
-                activeView === key && "border-blue-500" // active indicator
-              )}
-              onClick={() => {
-                onViewChange(key);
-                onPanelToggle(true);
-              }}
-            >
-              <Icon className="h-5 w-5 mb-1" aria-hidden="true" />
-              <span className={labelClass(activeView === key)}>{label}</span>
-            </button>
-          ))}
+          <button
+            type="button"
+            className={cx(
+              railButtonClass(true),
+              "border-l-2 border-blue-500"
+            )}
+            onClick={() => onPanelToggle(true)}
+            aria-label="Settings"
+          >
+            <FiSettings className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(true)}>Settings</span>
+          </button>
         </nav>
 
         <div className="mt-auto flex w-full flex-col gap-1 border-t border-slate-800 pt-3">
@@ -175,9 +140,9 @@ export default function Sidebar({
             aria-label={panelOpen ? "Collapse panel" : "Expand panel"}
           >
             {panelOpen ? (
-              <FiChevronRight className="h-5 w-5" aria-hidden="true" />
-            ) : (
               <FiChevronLeft className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <FiChevronRight className="h-5 w-5" aria-hidden="true" />
             )}
             <span className={labelClass(false)}>
               {panelOpen ? "Collapse" : "Expand"}
@@ -186,51 +151,38 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Floating Right Panel */}
       <div
         className={cx(
-          "absolute right-4 top-4 bottom-4 shadow-xl z-20 transition-all duration-300 ease-out flex flex-col",
-          panelOpen ? "translate-x-0 opacity-100 w-80 pointer-events-auto" : "translate-x-8 w-0 opacity-0 pointer-events-none"
+          "overflow-hidden transition-[width] duration-200 ease-out",
+          panelOpen ? "w-80" : "w-0"
         )}
         aria-hidden={!panelOpen}
       >
-        <div className={cx("flex flex-col h-full rounded-xl overflow-hidden shadow-lg border", isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white")}>
-          <div className="px-4 py-3 border-b flex items-center justify-between gap-2 shadow-sm" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold">AGEIS</div>
-            </div>
+        <div className={panelShellClass}>
+          <div className="px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="leading-tight">
+                <div className="text-sm font-semibold">AGEIS</div>
+              </div>
 
-            <button
-              type="button"
-              className={cx(
-                "grid h-8 w-8 place-items-center rounded-lg border transition",
-                isDark
-                  ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                  : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-              )}
-              onClick={() => onPanelToggle(false)}
-              aria-label="Collapse panel"
-            >
-              <FiChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+              <button
+                type="button"
+                className={cx(
+                  "grid h-9 w-9 place-items-center rounded-lg border transition",
+                  isDark
+                    ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
+                    : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
+                )}
+                onClick={() => onPanelToggle(false)}
+                aria-label="Collapse panel"
+              >
+                <FiChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-auto px-3 pb-3 space-y-3">
-            {activeView === "layers" && panelOpen && (
-              <div className="text-sm text-neutral-500 pt-2">
-                Map filtering and layer controls have been moved to the floating panels above the map.
-              </div>
-            )}
-
-            {activeView === "analytics" && panelOpen && (
-              <>
-                <div className="text-xs font-semibold text-neutral-500 pt-2 mb-2">AI Planning Recommendations</div>
-                {/* Notice: Place selector removed; relying on global floating selector state passed down if needed, but here we just render AnalyticsPanel */}
-                <AnalyticsPanel analytics={analytics} isDark={isDark} />
-              </>
-            )}
-
-            {activeView === "settings" && panelOpen && (
+            {panelOpen && (
               <div className="space-y-3">
                 <div className={surfaceClass}>
                   <div
