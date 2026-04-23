@@ -94,17 +94,17 @@ export default function PrivacyPage() {
           </ul>
 
           <h2 className="mb-4 text-2xl font-semibold text-gray-800 mt-8">
-            Children's Privacy
+            Children&apos;s Privacy
           </h2>
           <p className="mb-6">
-            Our Service does not address anyone under the age of 13 ("Children"). We do not knowingly collect personally identifiable information from anyone under the age of 13. If you are a parent or guardian and you are aware that your Child has provided us with personal information, please contact us. If we become aware that we have collected personal information from anyone under the age of 13 without verification of parental consent, we take steps to remove that information from our servers.
+            Our Service does not address anyone under the age of 13 (&quot;Children&quot;). We do not knowingly collect personally identifiable information from anyone under the age of 13. If you are a parent or guardian and you are aware that your Child has provided us with personal information, please contact us. If we become aware that we have collected personal information from anyone under the age of 13 without verification of parental consent, we take steps to remove that information from our servers.
           </p>
 
           <h2 className="mb-4 text-2xl font-semibold text-gray-800 mt-8">
             Changes to This Privacy Policy
           </h2>
           <p className="mb-6">
-            We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page. We will let you know via email and/or a prominent notice on our Service, prior to the change becoming effective and update the "Effective Date" at the top of this Privacy Policy.
+            We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page. We will let you know via email and/or a prominent notice on our Service, prior to the change becoming effective and update the &quot;Effective Date&quot; at the top of this Privacy Policy.
           </p>
 
           <h2 className="mb-4 text-2xl font-semibold text-gray-800 mt-8">
