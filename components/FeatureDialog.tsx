@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import {
   findNearestFacility,
-  formatDistance,
   getFacilityName,
   type NearestFacilityResult,
   type GeoJSONCollection,
@@ -31,10 +30,7 @@ interface RouteDirections {
 }
 
 // Layer IDs
-const POPULATED_AREAS_LAYER = "populated areas";
 const SCHOOLS_LAYER = "Schools";
-const EDUCATION_LAYER = "education facilities";
-const ROAD_LAYER = "road";
 
 // School type property values (using 'maki' field)
 const SCHOOL_MAKI_ELEMENTARY = "school";

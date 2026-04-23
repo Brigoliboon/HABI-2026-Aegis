@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { FiSearch, FiX } from "react-icons/fi";
 
 type SearchSuggestion = {
@@ -38,7 +39,15 @@ export default function SearchBar({
   onSuggestionSelect,
   isDark,
 }: Props) {
+  const [activeIndex, setActiveIndex] = useState(-1);
   const normalizedQuery = query.trim();
+  const visibleSuggestions = suggestions.slice(0, 10);
+  const effectiveActiveIndex =
+    visibleSuggestions.length === 0
+      ? -1
+      : activeIndex < 0
+        ? -1
+        : Math.min(activeIndex, visibleSuggestions.length - 1);
 
   const inputClass = cx(
     "h-10 w-full rounded-full border px-10 text-sm outline-none transition",
@@ -48,15 +57,8 @@ export default function SearchBar({
   );
 
   const suggestionContainerClass = cx(
-    "absolute top-full left-0 z-50 w-full mt-2 overflow-hidden rounded-xl border shadow-xl",
+    "absolute top-full left-0 z-50 mt-2 w-full overflow-hidden rounded-xl border shadow-xl",
     isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
-  );
-
-  const suggestionRowClass = cx(
-    "w-full border-b px-3 py-3 text-left transition last:border-b-0",
-    isDark
-      ? "border-white/5 hover:bg-white/5"
-      : "border-neutral-100 hover:bg-black/5"
   );
 
   return (
@@ -75,15 +77,44 @@ export default function SearchBar({
         onBlur={() =>
           setTimeout(() => {
             onFocusChange(false);
-          }, 150)
+          }, 160)
         }
         onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (visibleSuggestions.length === 0) return;
+            setActiveIndex((current) => {
+              const next = current < 0 ? 0 : current + 1;
+              return next >= visibleSuggestions.length ? 0 : next;
+            });
+            return;
+          }
+
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (visibleSuggestions.length === 0) return;
+            setActiveIndex((current) => {
+              if (current < 0) return visibleSuggestions.length - 1;
+              return current <= 0 ? visibleSuggestions.length - 1 : current - 1;
+            });
+            return;
+          }
+
+          if (e.key === "Escape") {
+            onFocusChange(false);
+            return;
+          }
+
           if (e.key !== "Enter") return;
-          if (suggestions.length === 0) return;
+          if (visibleSuggestions.length === 0) return;
           e.preventDefault();
-          onSuggestionSelect(suggestions[0]);
+          const selected =
+            effectiveActiveIndex >= 0
+              ? visibleSuggestions[effectiveActiveIndex]
+              : visibleSuggestions[0];
+          if (selected) onSuggestionSelect(selected);
         }}
-        placeholder="Search the map"
+        placeholder="Search places"
         className={inputClass}
         aria-label="Search"
       />
@@ -95,7 +126,10 @@ export default function SearchBar({
             isDark ? "text-neutral-300 hover:bg-white/10" : "text-neutral-600 hover:bg-black/5"
           )}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onQueryChange("")}
+          onClick={() => {
+            setActiveIndex(-1);
+            onQueryChange("");
+          }}
           aria-label="Clear search"
         >
           <FiX className="h-4 w-4" aria-hidden="true" />
@@ -104,16 +138,28 @@ export default function SearchBar({
 
       {isFocused && normalizedQuery.length > 0 && (
         <div className={suggestionContainerClass}>
-          {suggestions.slice(0, 8).map((suggestion) => (
+          {visibleSuggestions.map((suggestion, index) => (
             <button
               key={suggestion.id}
               type="button"
-              className={suggestionRowClass}
+              className={cx(
+                "w-full border-b px-3 py-3 text-left transition last:border-b-0",
+                isDark ? "border-white/5 hover:bg-white/5" : "border-neutral-100 hover:bg-black/5",
+                index === effectiveActiveIndex && (isDark ? "bg-white/10" : "bg-black/5")
+              )}
               onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setActiveIndex(index)}
               onClick={() => onSuggestionSelect(suggestion)}
             >
-              <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
-                {suggestion.title}
+              <div className="flex items-center justify-between gap-2">
+                <div className={cx("text-sm font-semibold", isDark ? "text-neutral-100" : "text-neutral-900")}>
+                  {suggestion.title}
+                </div>
+                {suggestion.kind !== "mapbox" && (
+                  <span className={cx("text-[10px] font-semibold uppercase", isDark ? "text-emerald-300" : "text-emerald-700")}>
+                    Local
+                  </span>
+                )}
               </div>
               <div className={cx("text-xs", isDark ? "text-neutral-400" : "text-neutral-600")}>
                 {suggestion.subtitle}
@@ -123,12 +169,10 @@ export default function SearchBar({
 
           <div className={cx("px-3 py-2 text-xs", isDark ? "text-neutral-400" : "text-neutral-500")}>
             {isLoading
-              ? "Searching…"
-              : normalizedQuery.length < 2
-                ? "Type at least 2 characters"
-                : suggestions.length === 0
-                  ? "No results"
-                  : `${suggestions.length} result${suggestions.length === 1 ? "" : "s"}`}
+              ? "Searching..."
+              : visibleSuggestions.length === 0
+                ? "No results"
+                : `${visibleSuggestions.length} result${visibleSuggestions.length === 1 ? "" : "s"}`}
           </div>
         </div>
       )}

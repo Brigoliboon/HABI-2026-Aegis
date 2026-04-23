@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { MarkerData } from "@/types/locations";
@@ -22,6 +22,8 @@ const STYLE_CATEGORY_LAYER_IDS = Array.from(
 type Props = {
   mapStyle: string;
   selectedLocation: MarkerData | null;
+  placeZoomSequence?: MarkerData[] | null;
+  placeZoomSequenceKey?: string | null;
   enableStyleLayerFeatures?: boolean;
   activeStyleLayerIds?: string[];
   onStyleLayersChange?: (layers: StyleLayer[], initiallyActiveLayerIds: string[]) => void;
@@ -37,6 +39,8 @@ type Props = {
 export default function AGEISMap({
   mapStyle,
   selectedLocation,
+  placeZoomSequence,
+  placeZoomSequenceKey,
   enableStyleLayerFeatures,
   activeStyleLayerIds,
   onStyleLayersChange,
@@ -51,6 +55,8 @@ export default function AGEISMap({
   const enableStyleLayerFeaturesRef = useRef(Boolean(enableStyleLayerFeatures));
   const activeStyleLayerIdsRef = useRef<string[] | undefined>(activeStyleLayerIds);
   const onStyleLayersChangeRef = useRef<Props["onStyleLayersChange"]>(onStyleLayersChange);
+  const placeZoomSequenceRunIdRef = useRef(0);
+  const [mapReadyVersion, setMapReadyVersion] = useState(0);
   const styleLayerClickHandlersRef = useRef<
     Array<{ layerId: string; onClick: (e: mapboxgl.MapLayerMouseEvent) => void }>
   >([]);
@@ -236,7 +242,7 @@ export default function AGEISMap({
     });
 
     mapRef.current = map;
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
+    map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 
     const emitViewport = () => {
       const currentMap = mapRef.current;
@@ -265,6 +271,7 @@ export default function AGEISMap({
         registerCategorizedStyleLayerPopups(map);
         applyCategorizedStyleLayerVisibility(map, activeStyleLayerIdsRef.current);
       }
+      setMapReadyVersion((current) => current + 1);
       onMapReady?.(map);
       
       const boundarySourceId = "ph-admin-boundaries";
@@ -382,8 +389,8 @@ export default function AGEISMap({
         ],
         {
           padding: 60,
-          duration: 900,
-          maxZoom: 14,
+          duration: 500,
+          maxZoom: 15,
         }
       );
       return;
@@ -392,9 +399,72 @@ export default function AGEISMap({
     map.flyTo({
       center: [selectedLocation.lng, selectedLocation.lat],
       zoom: selectedLocation.zoom ?? 12,
-      duration: 900,
+      duration: 500,
     });
   }, [selectedLocation]);
+
+  const moveMapToTarget = useCallback(
+    (map: mapboxgl.Map, target: MarkerData, duration: number) =>
+      new Promise<void>((resolve) => {
+        let settled = false;
+
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          map.off("moveend", onMoveEnd);
+          resolve();
+        };
+
+        const onMoveEnd = () => {
+          finish();
+        };
+
+        map.on("moveend", onMoveEnd);
+
+        if (target.bbox) {
+          const [west, south, east, north] = target.bbox;
+          map.fitBounds(
+            [
+              [west, south],
+              [east, north],
+            ],
+            {
+              padding: 60,
+              duration,
+              maxZoom: target.zoom ?? 15,
+            }
+          );
+        } else {
+          map.flyTo({
+            center: [target.lng, target.lat],
+            zoom: target.zoom ?? 12,
+            duration,
+          });
+        }
+
+        window.setTimeout(finish, duration + 80);
+      }),
+    []
+  );
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!placeZoomSequenceKey || !placeZoomSequence || placeZoomSequence.length === 0) return;
+
+    const runId = placeZoomSequenceRunIdRef.current + 1;
+    placeZoomSequenceRunIdRef.current = runId;
+
+    void (async () => {
+      for (let index = 0; index < placeZoomSequence.length; index += 1) {
+        if (placeZoomSequenceRunIdRef.current !== runId) return;
+
+        const target = placeZoomSequence[index];
+        const isLast = index === placeZoomSequence.length - 1;
+        await moveMapToTarget(map, target, isLast ? 420 : 260);
+      }
+    })();
+  }, [mapReadyVersion, moveMapToTarget, placeZoomSequence, placeZoomSequenceKey]);
 
   useEffect(() => {
     const map = mapRef.current;

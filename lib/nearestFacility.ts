@@ -86,7 +86,8 @@ export function findNearestFacility(
   for (const feature of facilityCollection.features) {
     if (feature.geometry.type !== "Point") continue;
 
-    const distance = turf.distance(fromPoint, feature as any);
+    const candidatePoint = turf.point(feature.geometry.coordinates, feature.properties);
+    const distance = turf.distance(fromPoint, candidatePoint);
 
     if (nearestResult.facility === null || distance < nearestResult.distance) {
       nearestResult = {
@@ -119,10 +120,8 @@ export function snapToRoad(
     if (feature.geometry.type !== "LineString") continue;
 
     try {
-      const snapped = turf.nearestPointOnLine(
-        feature.geometry as any,
-        pointFeature
-      );
+      const line = turf.lineString(feature.geometry.coordinates, feature.properties);
+      const snapped = turf.nearestPointOnLine(line, pointFeature);
 
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(pointFeature, snapped);

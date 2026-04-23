@@ -1,26 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
-  FiBarChart2,
   FiChevronLeft,
   FiChevronRight,
   FiClipboard,
   FiFile,
-  FiFilter,
   FiInfo,
   FiLock,
   FiMoon,
   FiSettings,
   FiSun,
 } from "react-icons/fi";
-
-import { FiCheck } from "react-icons/fi";
-import AnalyticsPanel from "./analytics-panel";
-import PlaceSelectorPanel from "./place-selector-panel";
-
-type ViewKey = "filter" | "analytics" | "settings";
 
 type ThemeMode = "dark" | "light";
 
@@ -31,66 +22,30 @@ type MapStyleOption = {
   preview: string;
 };
 
-type AnalyticsData = {
-  total: number;
-  avgIncome: number | null;
-  highRisk: number;
-  topBarangays: Array<[string, number]>;
-};
-
-type StyleLayer = {
-  id: string;
-  type: string;
-};
-
 type Props = {
-  activeView: ViewKey;
   panelOpen: boolean;
   isDark: boolean;
-  barangayOptions: string[];
-  selectedPlace: { region: string | null; province: string | null; municipality: string | null; barangay: string | null };
-  onPlaceChange: (place: { region: string | null; province: string | null; municipality: string | null; barangay: string | null }) => void;
-  analytics: AnalyticsData;
   themeMode: ThemeMode;
   mapStyleId: MapStyleOption["id"];
   mapStyles: MapStyleOption[];
-  onViewChange: (view: ViewKey) => void;
   onPanelToggle: (open: boolean) => void;
   onThemeChange: (mode: ThemeMode) => void;
   onMapStyleChange: (id: MapStyleOption["id"]) => void;
-  styleLayers: StyleLayer[];
-  activeStyleLayerIds: Set<string>;
-  onActiveStyleLayerIdsChange: (ids: Set<string>) => void;
 };
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-const railItems: Array<{ key: ViewKey; label: string; icon: typeof FiFilter }> = [
-  { key: "filter", label: "Filter", icon: FiFilter },
-  { key: "analytics", label: "Analytics", icon: FiBarChart2 },
-  { key: "settings", label: "Settings", icon: FiSettings },
-];
-
 export default function Sidebar({
-  activeView,
   panelOpen,
   isDark,
-  barangayOptions,
-  selectedPlace,
-  onPlaceChange,
-  analytics,
   themeMode,
   mapStyleId,
   mapStyles,
-  onViewChange,
   onPanelToggle,
   onThemeChange,
   onMapStyleChange,
-  styleLayers,
-  activeStyleLayerIds,
-  onActiveStyleLayerIdsChange,
 }: Props) {
   const railClass = cx(
     "flex h-full w-20 flex-col items-center border-r py-4 z-20 shadow-md",
@@ -129,24 +84,18 @@ export default function Sidebar({
     <aside className="relative flex h-full z-20">
       <div className={railClass}>
         <nav className="flex w-full flex-1 flex-col gap-1">
-          {railItems.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              className={cx(
-                railButtonClass(activeView === key),
-                "border-l-2 border-transparent",
-                activeView === key && "border-blue-500" // active indicator
-              )}
-              onClick={() => {
-                onViewChange(key);
-                onPanelToggle(true);
-              }}
-            >
-              <Icon className="h-5 w-5 mb-1" aria-hidden="true" />
-              <span className={labelClass(activeView === key)}>{label}</span>
-            </button>
-          ))}
+          <button
+            type="button"
+            className={cx(
+              railButtonClass(true),
+              "border-l-2 border-blue-500"
+            )}
+            onClick={() => onPanelToggle(true)}
+            aria-label="Settings"
+          >
+            <FiSettings className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(true)}>Settings</span>
+          </button>
         </nav>
 
         <div className="mt-auto flex w-full flex-col gap-1 border-t border-slate-800 pt-3">
@@ -233,98 +182,7 @@ export default function Sidebar({
           </div>
 
           <div className="flex-1 overflow-auto px-3 pb-3 space-y-3">
-{activeView === "filter" && panelOpen && (
-              <>
-                <PlaceSelectorPanel
-                  barangayOptions={barangayOptions}
-                  selectedPlace={selectedPlace}
-                  onPlaceChange={onPlaceChange}
-                  isDark={isDark}
-                />
-
-                <div className="space-y-2">
-                  <div
-                    className={cx(
-                      "text-xs font-semibold",
-                      isDark ? "text-neutral-400" : "text-neutral-600"
-                    )}
-                  >
-                    Map Layers
-                  </div>
-
-                  {styleLayers.length === 0 ? (
-                    <div
-                      className={cx(
-                        "rounded-lg border p-3 text-center text-xs",
-                        isDark ? "border-white/10 text-neutral-500" : "border-neutral-200 text-neutral-400"
-                      )}
-                    >
-                      Loading layers...
-                    </div>
-                  ) : (
-                    <div className="space-y-1 max-h-full overflow-auto">
-                      {styleLayers.map((layer) => {
-                        const isActive = activeStyleLayerIds.has(layer.id);
-                        return (
-                          <button
-                            key={layer.id}
-                            type="button"
-                            onClick={() => {
-                              const next = new Set(activeStyleLayerIds);
-                              if (next.has(layer.id)) next.delete(layer.id);
-                              else next.add(layer.id);
-                              onActiveStyleLayerIdsChange(next);
-                            }}
-                            className={cx(
-                              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition",
-                              isDark ? "hover:bg-white/5" : "hover:bg-black/5"
-                            )}
-                          >
-                            <div
-                              className={cx(
-                                "flex h-4 w-4 items-center justify-center rounded border",
-                                isActive
-                                  ? isDark
-                                    ? "border-white/30 bg-white/10"
-                                    : "border-neutral-400 bg-black/5"
-                                  : isDark
-                                    ? "border-white/10"
-                                    : "border-neutral-200"
-                              )}
-                            >
-                              {isActive && <FiCheck className="h-3 w-3" />}
-                            </div>
-                            <span
-                              className={cx(
-                                isDark ? "text-neutral-300" : "text-neutral-700"
-                              )}
-                            >
-                              {layer.id}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {activeView === "analytics" && panelOpen && (
-              <>
-                <PlaceSelectorPanel
-                  barangayOptions={barangayOptions}
-                  selectedPlace={selectedPlace}
-                  onPlaceChange={onPlaceChange}
-                  isDark={isDark}
-                />
-                {selectedPlace.barangay && (
-                  <AnalyticsPanel analytics={analytics} isDark={isDark} />
-                )}
-              </>
-            )}
-
-            {activeView === "settings" && panelOpen && (
+            {panelOpen && (
               <div className="space-y-3">
                 <div className={surfaceClass}>
                   <div
