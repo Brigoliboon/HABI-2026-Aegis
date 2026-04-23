@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiFilter, FiLayers } from "react-icons/fi";
+import Image from "next/image";
+import { FiFilter, FiLayers, FiUser } from "react-icons/fi";
 
 import mapboxgl from "mapbox-gl";
 
@@ -350,11 +351,9 @@ export default function AGEISApp() {
   const isDark = themeMode === "dark";
 
   const containerClass = cx(
-    "relative h-screen w-screen overflow-hidden",
+    "flex flex-col h-screen w-screen overflow-hidden",
     isDark ? "bg-neutral-950 text-neutral-100" : "bg-neutral-50 text-neutral-900"
   );
-
-  const topCenterClass = "absolute left-1/2 top-4 z-20 w-[36rem] max-w-[calc(100vw-2rem)] -translate-x-1/2";
 
   const floatingButtonClass = cx(
     "grid h-11 w-11 place-items-center rounded-xl border transition",
@@ -383,104 +382,132 @@ export default function AGEISApp() {
 
   return (
     <div className={containerClass}>
-      <div className="absolute inset-0">
-<AGEISMap
-          selectedLocation={selectedLocation}
-          mapStyle={mapStyleUrl}
-          enableStyleLayerFeatures={isAgeisStyle}
-          activeStyleLayerIds={isAgeisStyle ? [...activeStyleLayerIds] : undefined}
-          onStyleLayersChange={handleStyleLayersChange}
-          onViewportChange={(viewport) => {
-            mapViewportRef.current = viewport;
-          }}
-          onFeatureClick={(properties, position) => {
-            setDialogProperties(properties);
-            setDialogPosition(position);
-            setDialogOpen(true);
-          }}
-          onMapReady={(map) => {
-            mapRef.current = map;
-          }}
-        />
-      </div>
-
-      <div className={topCenterClass}>
-        <div className="relative">
-          <div className="flex items-start gap-2">
-            <SearchBar
-              query={searchQuery}
-              onQueryChange={(query) => {
-                setSearchQuery(query);
-                if (!query.trim()) {
-                  clearSearchWork();
-                  setSearchSuggestions([]);
-                  return;
-                }
-                scheduleSearch(query);
-              }}
-              isFocused={isSearchFocused}
-              onFocusChange={(focused) => {
-                setIsSearchFocused(focused);
-                if (!focused) {
-                  clearSearchWork();
-                  setSearchSuggestions([]);
-                }
-              }}
-              suggestions={searchSuggestions}
-              isLoading={searchIsLoading}
-              onSuggestionSelect={selectSuggestion}
-              isDark={isDark}
-            />  
+      <header
+        className="relative z-30 flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-[#0f172a] px-4 text-white"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center">
+            <Image src="/AGEIS_logo.svg" alt="AGEIS" width={36} height={36} priority />
+          </div>
+          <div className="flex items-center">
+            <span className="text-xl font-bold tracking-wide mr-2">AGEIS</span>
+            <div className="flex flex-col border-l border-slate-600 pl-2">
+              <span className="text-[10px] text-slate-300 leading-tight">AI-Powered Geospatial</span>
+              <span className="text-[10px] text-slate-300 leading-tight">Education Intelligence System</span>
+            </div>
           </div>
         </div>
-      </div>
 
+        <div className="absolute left-1/2 top-1/2 w-[30rem] max-w-[calc(100vw-16rem)] -translate-x-1/2 -translate-y-1/2 z-40">
+          <SearchBar
+            query={searchQuery}
+            onQueryChange={(query) => {
+              setSearchQuery(query);
+              if (!query.trim()) {
+                clearSearchWork();
+                setSearchSuggestions([]);
+                return;
+              }
+              scheduleSearch(query);
+            }}
+            isFocused={isSearchFocused}
+            onFocusChange={(focused) => {
+              setIsSearchFocused(focused);
+              if (!focused) {
+                clearSearchWork();
+                setSearchSuggestions([]);
+              }
+            }}
+            suggestions={searchSuggestions}
+            isLoading={searchIsLoading}
+            onSuggestionSelect={selectSuggestion}
+            isDark={true}
+          />
+        </div>
 
-      <Sidebar
-        activeView={activeView}
-        panelOpen={panelOpen}
-        isDark={isDark}
-        barangayOptions={barangayOptions}
-        selectedPlace={selectedPlace}
-        onPlaceChange={setSelectedPlace}
-        analytics={analytics}
-        themeMode={themeMode}
-        mapStyleId={mapStyleId}
-        mapStyles={MAP_STYLES}
-        onViewChange={setActiveView}
-        onPanelToggle={setPanelOpen}
-        onThemeChange={setThemeMode}
-        onMapStyleChange={setMapStyleId}
-        styleLayers={styleLayers}
-        activeStyleLayerIds={activeStyleLayerIds}
-        onActiveStyleLayerIdsChange={setActiveStyleLayerIds}
-      />
-
-      <FeatureDialog
-        isOpen={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        properties={dialogProperties}
-        titleKey="name"
-        descriptionKeys={["population", "place"]}
-        position={dialogPosition}
-        mapRef={mapRef}
-        onShowRoute={(geometry, profile) => setRouteGeometry({ geometry, profile })}
-      />
-
-      {routeGeometry && (
-        <div className="absolute bottom-24 right-4 z-20 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 shadow-lg">
-          <span className="text-xs text-gray-600">
-            {routeGeometry.profile === "walking" ? "🚶 Walking" : "🚗 Driving"} route displayed
-          </span>
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setRouteGeometry(null)}
-            className="ml-1 text-xs text-red-500 hover:text-red-700"
+            type="button"
+            className={cx(
+              "flex h-8 w-8 items-center justify-center rounded-full border transition",
+              isDark ? "border-white/10 hover:bg-white/5" : "border-slate-700 bg-slate-800 hover:bg-slate-700"
+            )}
+            aria-label="User Profile"
           >
-            ✕
+            <FiUser className={cx("h-4 w-4", isDark ? "text-neutral-300" : "text-slate-300")} aria-hidden="true" />
           </button>
         </div>
-      )}
+      </header>
 
+      <div className="relative flex flex-1 overflow-hidden">
+        <Sidebar
+          activeView={activeView}
+          panelOpen={panelOpen}
+          isDark={isDark}
+          barangayOptions={barangayOptions}
+          selectedPlace={selectedPlace}
+          onPlaceChange={setSelectedPlace}
+          analytics={analytics}
+          themeMode={themeMode}
+          mapStyleId={mapStyleId}
+          mapStyles={MAP_STYLES}
+          onViewChange={setActiveView}
+          onPanelToggle={setPanelOpen}
+          onThemeChange={setThemeMode}
+          onMapStyleChange={setMapStyleId}
+          styleLayers={styleLayers}
+          activeStyleLayerIds={activeStyleLayerIds}
+          onActiveStyleLayerIdsChange={setActiveStyleLayerIds}
+        />
+
+        <div className="relative flex-1">
+          <div className="absolute inset-0">
+            <AGEISMap
+              selectedLocation={selectedLocation}
+              mapStyle={mapStyleUrl}
+              enableStyleLayerFeatures={isAgeisStyle}
+              activeStyleLayerIds={isAgeisStyle ? [...activeStyleLayerIds] : undefined}
+              onStyleLayersChange={handleStyleLayersChange}
+              onViewportChange={(viewport) => {
+                mapViewportRef.current = viewport;
+              }}
+              onFeatureClick={(properties, position) => {
+                setDialogProperties(properties);
+                setDialogPosition(position);
+                setDialogOpen(true);
+              }}
+              onMapReady={(map) => {
+                mapRef.current = map;
+              }}
+            />
+          </div>
+          
+          <FeatureDialog
+            isOpen={dialogOpen}
+            onClose={() => setDialogOpen(false)}
+            properties={dialogProperties}
+            titleKey="name"
+            descriptionKeys={["population", "place"]}
+            position={dialogPosition}
+            mapRef={mapRef}
+            onShowRoute={(geometry, profile) => setRouteGeometry({ geometry, profile })}
+          />
+
+          {routeGeometry && (
+            <div className="absolute bottom-24 right-4 z-20 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 shadow-lg">
+              <span className="text-xs text-gray-600">
+                {routeGeometry.profile === "walking" ? "🚶 Walking" : "🚗 Driving"} route displayed
+              </span>
+              <button
+                onClick={() => setRouteGeometry(null)}
+                className="ml-1 text-xs text-red-500 hover:text-red-700"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

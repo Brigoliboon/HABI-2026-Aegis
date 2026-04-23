@@ -93,25 +93,25 @@ export default function Sidebar({
   onActiveStyleLayerIdsChange,
 }: Props) {
   const railClass = cx(
-    "flex h-full w-16 flex-col items-center border-r px-2 py-3",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
+    "flex h-full w-20 flex-col items-center border-r py-4 z-20 shadow-md",
+    "border-slate-800 bg-[#0f172a]" // Fixed dark blue theme
   );
 
   const railButtonClass = (isActive: boolean) =>
     cx(
-      "group relative grid h-11 w-11 flex-col place-items-center justify-center rounded-lg transition",
-      isDark ? "text-neutral-200 hover:bg-white/5" : "text-neutral-700 hover:bg-black/5",
-      isActive && (isDark ? "bg-white/10" : "bg-black/10")
+      "group relative flex w-full flex-col items-center justify-center gap-1 py-3 transition",
+      "text-slate-400 hover:text-white hover:bg-white/5",
+      isActive && "text-white bg-white/10"
     );
 
   const labelClass = (isActive: boolean) =>
     cx(
-      "mt-1 truncate text-center text-[10px] font-medium transition",
-      isActive && (isDark ? "text-neutral-100" : "text-neutral-900")
+      "text-[10px] font-medium tracking-wide transition-colors",
+      isActive ? "text-white" : "text-slate-400 group-hover:text-white"
     );
 
   const panelShellClass = cx(
-    "flex h-full w-80 flex-col border-r",
+    "flex h-full w-80 flex-col border-r shadow-lg relative z-10",
     isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
   );
 
@@ -126,99 +126,67 @@ export default function Sidebar({
   );
 
   return (
-    <aside className="absolute left-0 top-0 z-10 flex h-full">
+    <aside className="relative flex h-full z-20">
       <div className={railClass}>
-        <div className="flex flex-col items-center gap-2">
-          <div
-            className={cx(
-              "grid h-11 w-11 place-items-center rounded-xl border",
-              isDark ? "border-white/10 bg-neutral-900" : "border-neutral-200 bg-white"
-            )}
-            aria-label="AGEIS"
-            title="AGEIS"
-          >
-            <Image src="/AGEIS_logo.svg" alt="AGEIS" width={32} height={32} className="h-8 w-8" priority />
-          </div>
-        </div>
-
-        <nav className="mt-4 flex w-full flex-1 flex-col items-center gap-2">
+        <nav className="flex w-full flex-1 flex-col gap-1">
           {railItems.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               type="button"
               className={cx(
                 railButtonClass(activeView === key),
-                "group relative"
+                "border-l-2 border-transparent",
+                activeView === key && "border-blue-500" // active indicator
               )}
               onClick={() => {
                 onViewChange(key);
                 onPanelToggle(true);
               }}
             >
-              <span className="sr-only">{label}</span>
-              <Icon className="h-5 w-5" aria-hidden="true" />
-              <span
-                className={cx(
-                  labelClass(activeView === key),
-                  "opacity-0 group-hover:opacity-100",
-                  activeView !== key && (isDark ? "text-neutral-400" : "text-neutral-600")
-                )}
-              >
-                {label}
-              </span>
+              <Icon className="h-5 w-5 mb-1" aria-hidden="true" />
+              <span className={labelClass(activeView === key)}>{label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="mt-auto flex w-full flex-col items-center gap-2">
+        <div className="mt-auto flex w-full flex-col gap-1 border-t border-slate-800 pt-3">
           {/* Navigation Links */}
           <Link
             href="/about"
-            className={cx(railButtonClass(false), "group relative")}
+            className={railButtonClass(false)}
             aria-label="About"
           >
-            <FiInfo className="h-5 w-5" aria-hidden="true" />
-            <span className={cx(labelClass(false), "opacity-0 group-hover:opacity-100", isDark ? "text-neutral-400" : "text-neutral-600")}>
-              About
-            </span>
+            <FiInfo className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(false)}>About</span>
           </Link>
           <Link
             href="/licenses"
-            className={cx(railButtonClass(false), "group relative")}
+            className={railButtonClass(false)}
             aria-label="Licenses"
           >
-            <FiFile className="h-5 w-5" aria-hidden="true" />
-            <span className={cx(labelClass(false), "opacity-0 group-hover:opacity-100", isDark ? "text-neutral-400" : "text-neutral-600")}>
-              Licenses
-            </span>
+            <FiFile className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(false)}>Licenses</span>
           </Link>
           <Link
             href="/terms"
-            className={cx(railButtonClass(false), "group relative")}
+            className={railButtonClass(false)}
             aria-label="Terms"
           >
-            <FiClipboard className="h-5 w-5" aria-hidden="true" />
-            <span className={cx(labelClass(false), "opacity-0 group-hover:opacity-100", isDark ? "text-neutral-400" : "text-neutral-600")}>
-              Terms
-            </span>
+            <FiClipboard className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(false)}>Terms</span>
           </Link>
           <Link
             href="/privacy"
-            className={cx(railButtonClass(false), "group relative")}
+            className={railButtonClass(false)}
             aria-label="Privacy"
           >
-            <FiLock className="h-5 w-5" aria-hidden="true" />
-            <span className={cx(labelClass(false), "opacity-0 group-hover:opacity-100", isDark ? "text-neutral-400" : "text-neutral-600")}>
-              Privacy
-            </span>
+            <FiLock className="h-5 w-5 mb-1" aria-hidden="true" />
+            <span className={labelClass(false)}>Privacy</span>
           </Link>
 
           <button
             type="button"
-            className={cx(
-              railButtonClass(false),
-              "group relative"
-            )}
+            className={cx(railButtonClass(false), "mt-2 bg-slate-800/50 hover:bg-slate-800")}
             onClick={() => onPanelToggle(!panelOpen)}
             aria-label={panelOpen ? "Collapse panel" : "Expand panel"}
           >
@@ -227,13 +195,7 @@ export default function Sidebar({
             ) : (
               <FiChevronRight className="h-5 w-5" aria-hidden="true" />
             )}
-            <span
-              className={cx(
-                labelClass(false),
-                "opacity-0 group-hover:opacity-100",
-                isDark ? "text-neutral-400" : "text-neutral-600"
-              )}
-            >
+            <span className={labelClass(false)}>
               {panelOpen ? "Collapse" : "Expand"}
             </span>
           </button>

@@ -48,7 +48,7 @@ export default function SearchBar({
   );
 
   const suggestionContainerClass = cx(
-    "mt-2 overflow-hidden rounded-xl border",
+    "absolute top-full left-0 z-50 w-full mt-2 overflow-hidden rounded-xl border shadow-xl",
     isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
   );
 
