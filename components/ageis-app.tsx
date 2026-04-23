@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { FiFilter, FiLayers, FiUser } from "react-icons/fi";
+import { FiFilter, FiUser } from "react-icons/fi";
 
 import mapboxgl from "mapbox-gl";
 
 import AGEISMap from "./ageis-map";
 import SearchBar from "./search-bar";
+// Remove ts-ignore as it's not needed
 import FiltersPanel from "./filters-panel";
 import type { HouseholdFilters } from "./filters-panel";
 import OptionsPanel from "./options-panel";
 import Sidebar from "./sidebar";
 import FeatureDialog from "./FeatureDialog";
+import PlaceSelectorPanel from "./place-selector-panel";
 import type { FeatureProperties } from "./FeatureDialog";
 
 import { LAYER_CATEGORIES, type LayerCategory, type StyleLayer } from "@/lib/mapConstants";
@@ -461,7 +463,55 @@ export default function AGEISApp() {
         />
 
         <div className="relative flex-1">
-          <div className="absolute inset-0">
+          <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
+            <div className={cx(
+              "flex items-center p-2 rounded-xl shadow-lg border backdrop-blur-md",
+              isDark ? "bg-neutral-900/90 border-white/10" : "bg-white/90 border-neutral-200"
+            )}>
+              <PlaceSelectorPanel
+                barangayOptions={barangayOptions}
+                selectedPlace={selectedPlace}
+                onPlaceChange={setSelectedPlace}
+                isDark={isDark}
+              />
+            </div>
+            
+            <div className="relative">
+              <button
+                type="button"
+                onClick={toggleFilters}
+                className={cx(
+                  "flex items-center gap-2 h-10 px-4 rounded-xl shadow-lg border font-medium text-sm transition-colors",
+                  isDark
+                    ? "bg-neutral-900 border-white/10 text-neutral-100 hover:bg-neutral-800"
+                    : "bg-white border-neutral-200 text-neutral-800 hover:bg-neutral-50"
+                )}
+              >
+                <FiFilter className="h-4 w-4" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+              {filtersMounted && (
+                <div className="absolute right-0 top-full mt-2 z-30">
+                  <FiltersPanel
+                    filters={householdFilters}
+                    onFiltersChange={setHouseholdFilters}
+                    yearOptions={yearOptions}
+                    barangayOptions={barangayOptions}
+                    isOpen={filtersOpen}
+                    onClose={closeFilters}
+                    isDark={isDark}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="absolute inset-0 z-0">
             <AGEISMap
               selectedLocation={selectedLocation}
               mapStyle={mapStyleUrl}

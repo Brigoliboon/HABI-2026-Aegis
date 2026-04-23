@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   FiBarChart2,
@@ -8,19 +7,18 @@ import {
   FiChevronRight,
   FiClipboard,
   FiFile,
-  FiFilter,
   FiInfo,
   FiLock,
   FiMoon,
   FiSettings,
   FiSun,
+  FiLayers,
 } from "react-icons/fi";
 
 import { FiCheck } from "react-icons/fi";
 import AnalyticsPanel from "./analytics-panel";
-import PlaceSelectorPanel from "./place-selector-panel";
 
-type ViewKey = "filter" | "analytics" | "settings";
+type ViewKey = "layers" | "analytics" | "settings";
 
 type ThemeMode = "dark" | "light";
 
@@ -67,8 +65,8 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-const railItems: Array<{ key: ViewKey; label: string; icon: typeof FiFilter }> = [
-  { key: "filter", label: "Filter", icon: FiFilter },
+const railItems: Array<{ key: ViewKey; label: string; icon: typeof FiBarChart2 }> = [
+  { key: "layers", label: "Layers", icon: FiLayers },
   { key: "analytics", label: "Analytics", icon: FiBarChart2 },
   { key: "settings", label: "Settings", icon: FiSettings },
 ];
@@ -111,8 +109,8 @@ export default function Sidebar({
     );
 
   const panelShellClass = cx(
-    "flex h-full w-80 flex-col border-r shadow-lg relative z-10",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
+    "flex max-h-[calc(100vh-2rem)] w-80 flex-col shadow-lg rounded-xl border relative z-10",
+    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white/95 backdrop-blur-md"
   );
 
   const surfaceClass = cx(
@@ -204,8 +202,8 @@ export default function Sidebar({
 
       <div
         className={cx(
-          "overflow-hidden transition-[width] duration-200 ease-out",
-          panelOpen ? "w-80" : "w-0"
+          "absolute left-24 top-4 overflow-hidden transition-all duration-200 ease-out z-10",
+          panelOpen ? "w-80 opacity-100" : "w-0 opacity-0 pointer-events-none"
         )}
         aria-hidden={!panelOpen}
       >
@@ -233,15 +231,8 @@ export default function Sidebar({
           </div>
 
           <div className="flex-1 overflow-auto px-3 pb-3 space-y-3">
-{activeView === "filter" && panelOpen && (
+            {activeView === "layers" && panelOpen && (
               <>
-                <PlaceSelectorPanel
-                  barangayOptions={barangayOptions}
-                  selectedPlace={selectedPlace}
-                  onPlaceChange={onPlaceChange}
-                  isDark={isDark}
-                />
-
                 <div className="space-y-2">
                   <div
                     className={cx(
@@ -262,7 +253,7 @@ export default function Sidebar({
                       Loading layers...
                     </div>
                   ) : (
-                    <div className="space-y-1 max-h-full overflow-auto">
+                    <div className="space-y-1 max-h-[80vh] overflow-auto pr-2 pb-10">
                       {styleLayers.map((layer) => {
                         const isActive = activeStyleLayerIds.has(layer.id);
                         return (
@@ -282,7 +273,7 @@ export default function Sidebar({
                           >
                             <div
                               className={cx(
-                                "flex h-4 w-4 items-center justify-center rounded border",
+                                "flex h-4 w-4 items-center justify-center rounded border shrink-0",
                                 isActive
                                   ? isDark
                                     ? "border-white/30 bg-white/10"
@@ -296,6 +287,7 @@ export default function Sidebar({
                             </div>
                             <span
                               className={cx(
+                                "truncate",
                                 isDark ? "text-neutral-300" : "text-neutral-700"
                               )}
                             >
@@ -312,14 +304,12 @@ export default function Sidebar({
 
             {activeView === "analytics" && panelOpen && (
               <>
-                <PlaceSelectorPanel
-                  barangayOptions={barangayOptions}
-                  selectedPlace={selectedPlace}
-                  onPlaceChange={onPlaceChange}
-                  isDark={isDark}
-                />
-                {selectedPlace.barangay && (
+                {selectedPlace.barangay ? (
                   <AnalyticsPanel analytics={analytics} isDark={isDark} />
+                ) : (
+                  <div className={cx("text-sm", isDark ? "text-neutral-400" : "text-neutral-500")}>
+                    Select a barangay to view analytics.
+                  </div>
                 )}
               </>
             )}
