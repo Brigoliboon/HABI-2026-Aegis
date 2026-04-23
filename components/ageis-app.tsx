@@ -2,25 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { FiFilter, FiUser } from "react-icons/fi";
+import { FiFilter, FiLayers, FiUser } from "react-icons/fi";
 
 import mapboxgl from "mapbox-gl";
 
 import AGEISMap from "./ageis-map";
 import SearchBar from "./search-bar";
-// Remove ts-ignore as it's not needed
 import FiltersPanel from "./filters-panel";
 import type { HouseholdFilters } from "./filters-panel";
 import OptionsPanel from "./options-panel";
 import Sidebar from "./sidebar";
 import FeatureDialog from "./FeatureDialog";
-import PlaceSelectorPanel from "./place-selector-panel";
 import type { FeatureProperties } from "./FeatureDialog";
+import PlaceSelectorPanel from "./place-selector-panel";
 
 import { LAYER_CATEGORIES, type LayerCategory, type StyleLayer } from "@/lib/mapConstants";
 import type { MarkerData } from "@/types/locations";
 
-type ViewKey = "filter" | "analytics" | "settings";
+type ViewKey = "layers" | "analytics" | "settings";
 
 type ThemeMode = "dark" | "light";
 
@@ -446,9 +445,6 @@ export default function AGEISApp() {
           activeView={activeView}
           panelOpen={panelOpen}
           isDark={isDark}
-          barangayOptions={barangayOptions}
-          selectedPlace={selectedPlace}
-          onPlaceChange={setSelectedPlace}
           analytics={analytics}
           themeMode={themeMode}
           mapStyleId={mapStyleId}
@@ -457,61 +453,10 @@ export default function AGEISApp() {
           onPanelToggle={setPanelOpen}
           onThemeChange={setThemeMode}
           onMapStyleChange={setMapStyleId}
-          styleLayers={styleLayers}
-          activeStyleLayerIds={activeStyleLayerIds}
-          onActiveStyleLayerIdsChange={setActiveStyleLayerIds}
         />
 
         <div className="relative flex-1">
-          <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
-            <div className={cx(
-              "flex items-center p-2 rounded-xl shadow-lg border backdrop-blur-md",
-              isDark ? "bg-neutral-900/90 border-white/10" : "bg-white/90 border-neutral-200"
-            )}>
-              <PlaceSelectorPanel
-                barangayOptions={barangayOptions}
-                selectedPlace={selectedPlace}
-                onPlaceChange={setSelectedPlace}
-                isDark={isDark}
-              />
-            </div>
-            
-            <div className="relative">
-              <button
-                type="button"
-                onClick={toggleFilters}
-                className={cx(
-                  "flex items-center gap-2 h-10 px-4 rounded-xl shadow-lg border font-medium text-sm transition-colors",
-                  isDark
-                    ? "bg-neutral-900 border-white/10 text-neutral-100 hover:bg-neutral-800"
-                    : "bg-white border-neutral-200 text-neutral-800 hover:bg-neutral-50"
-                )}
-              >
-                <FiFilter className="h-4 w-4" />
-                Filters
-                {activeFiltersCount > 0 && (
-                  <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
-                    {activeFiltersCount}
-                  </span>
-                )}
-              </button>
-              {filtersMounted && (
-                <div className="absolute right-0 top-full mt-2 z-30">
-                  <FiltersPanel
-                    filters={householdFilters}
-                    onFiltersChange={setHouseholdFilters}
-                    yearOptions={yearOptions}
-                    barangayOptions={barangayOptions}
-                    isOpen={filtersOpen}
-                    onClose={closeFilters}
-                    isDark={isDark}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0">
             <AGEISMap
               selectedLocation={selectedLocation}
               mapStyle={mapStyleUrl}
@@ -530,6 +475,104 @@ export default function AGEISApp() {
                 mapRef.current = map;
               }}
             />
+          </div>
+
+          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+            <div className="flex items-center gap-2 rounded-xl border bg-white p-2 shadow-md dark:border-white/10 dark:bg-neutral-900 pointer-events-auto">
+              <PlaceSelectorPanel
+                barangayOptions={barangayOptions}
+                selectedPlace={selectedPlace}
+                onPlaceChange={setSelectedPlace}
+                isDark={isDark}
+              />
+              <div className="h-6 w-px bg-neutral-200 dark:bg-white/10" />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={toggleFilters}
+                  className={cx(
+                    "flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                    activeFiltersCount > 0
+                      ? "bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300"
+                  )}
+                >
+                  <FiFilter className="h-4 w-4" />
+                  Filters
+                  {activeFiltersCount > 0 && (
+                    <span className="ml-1 rounded-full bg-blue-100 px-1.5 text-[10px] text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+                {filtersMounted && (
+                  <div className="absolute right-0 top-full mt-2 z-30">
+                    <FiltersPanel
+                      filters={householdFilters}
+                      onFiltersChange={setHouseholdFilters}
+                      yearOptions={yearOptions}
+                      barangayOptions={barangayOptions}
+                      isOpen={filtersOpen}
+                      onClose={closeFilters}
+                      isDark={isDark}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Map Layers Panel */}
+            <div className="w-80 rounded-xl border bg-white p-4 shadow-md dark:border-white/10 dark:bg-neutral-900 pointer-events-auto max-h-[calc(100vh-140px)] flex flex-col">
+              <div className="mb-3 flex items-center gap-2">
+                <FiLayers className="h-5 w-5 text-neutral-500" />
+                <h3 className="text-sm font-semibold">Map Layers</h3>
+              </div>
+              {styleLayers.length === 0 ? (
+                <div className="rounded-lg border p-3 text-center text-xs dark:border-white/10 text-neutral-400">
+                  Loading layers...
+                </div>
+              ) : (
+                <div className="space-y-1 overflow-auto">
+                  {styleLayers.map((layer) => {
+                    const isActive = activeStyleLayerIds.has(layer.id);
+                    return (
+                      <button
+                        key={layer.id}
+                        type="button"
+                        onClick={() => {
+                          const next = new Set(activeStyleLayerIds);
+                          if (next.has(layer.id)) next.delete(layer.id);
+                          else next.add(layer.id);
+                          setActiveStyleLayerIds(next);
+                        }}
+                        className={cx(
+                          "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition",
+                          isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                        )}
+                      >
+                        <div
+                          className={cx(
+                            "flex h-4 w-4 items-center justify-center rounded border",
+                            isActive
+                              ? isDark
+                                ? "border-white/30 bg-white/10"
+                                : "border-neutral-400 bg-black/5"
+                              : isDark
+                                ? "border-white/10"
+                                : "border-neutral-200"
+                          )}
+                        >
+                          {isActive && <div className="h-2 w-2 rounded-sm bg-current" />}
+                        </div>
+                        <span className={cx(isDark ? "text-neutral-300" : "text-neutral-700")}>
+                          {layer.id}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           
           <FeatureDialog

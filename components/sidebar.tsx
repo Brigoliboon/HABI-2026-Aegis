@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import {
   FiBarChart2,
@@ -7,6 +8,7 @@ import {
   FiChevronRight,
   FiClipboard,
   FiFile,
+  FiFilter,
   FiInfo,
   FiLock,
   FiMoon,
@@ -17,6 +19,7 @@ import {
 
 import { FiCheck } from "react-icons/fi";
 import AnalyticsPanel from "./analytics-panel";
+import PlaceSelectorPanel from "./place-selector-panel";
 
 type ViewKey = "layers" | "analytics" | "settings";
 
@@ -36,18 +39,10 @@ type AnalyticsData = {
   topBarangays: Array<[string, number]>;
 };
 
-type StyleLayer = {
-  id: string;
-  type: string;
-};
-
 type Props = {
   activeView: ViewKey;
   panelOpen: boolean;
   isDark: boolean;
-  barangayOptions: string[];
-  selectedPlace: { region: string | null; province: string | null; municipality: string | null; barangay: string | null };
-  onPlaceChange: (place: { region: string | null; province: string | null; municipality: string | null; barangay: string | null }) => void;
   analytics: AnalyticsData;
   themeMode: ThemeMode;
   mapStyleId: MapStyleOption["id"];
@@ -56,9 +51,6 @@ type Props = {
   onPanelToggle: (open: boolean) => void;
   onThemeChange: (mode: ThemeMode) => void;
   onMapStyleChange: (id: MapStyleOption["id"]) => void;
-  styleLayers: StyleLayer[];
-  activeStyleLayerIds: Set<string>;
-  onActiveStyleLayerIdsChange: (ids: Set<string>) => void;
 };
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -75,9 +67,6 @@ export default function Sidebar({
   activeView,
   panelOpen,
   isDark,
-  barangayOptions,
-  selectedPlace,
-  onPlaceChange,
   analytics,
   themeMode,
   mapStyleId,
@@ -86,9 +75,6 @@ export default function Sidebar({
   onPanelToggle,
   onThemeChange,
   onMapStyleChange,
-  styleLayers,
-  activeStyleLayerIds,
-  onActiveStyleLayerIdsChange,
 }: Props) {
   const railClass = cx(
     "flex h-full w-20 flex-col items-center border-r py-4 z-20 shadow-md",
@@ -109,8 +95,8 @@ export default function Sidebar({
     );
 
   const panelShellClass = cx(
-    "flex max-h-[calc(100vh-2rem)] w-80 flex-col shadow-lg rounded-xl border relative z-10",
-    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white/95 backdrop-blur-md"
+    "flex h-full w-80 flex-col border-r shadow-lg relative z-10",
+    isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white"
   );
 
   const surfaceClass = cx(
@@ -124,8 +110,8 @@ export default function Sidebar({
   );
 
   return (
-    <aside className="relative flex h-full z-20">
-      <div className={railClass}>
+    <aside className="flex h-full z-20 pointer-events-none">
+      <div className={cx(railClass, "pointer-events-auto")}>
         <nav className="flex w-full flex-1 flex-col gap-1">
           {railItems.map(({ key, label, icon: Icon }) => (
             <button
@@ -189,9 +175,9 @@ export default function Sidebar({
             aria-label={panelOpen ? "Collapse panel" : "Expand panel"}
           >
             {panelOpen ? (
-              <FiChevronLeft className="h-5 w-5" aria-hidden="true" />
-            ) : (
               <FiChevronRight className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <FiChevronLeft className="h-5 w-5" aria-hidden="true" />
             )}
             <span className={labelClass(false)}>
               {panelOpen ? "Collapse" : "Expand"}
@@ -200,117 +186,47 @@ export default function Sidebar({
         </div>
       </div>
 
+      {/* Floating Right Panel */}
       <div
         className={cx(
-          "absolute left-24 top-4 overflow-hidden transition-all duration-200 ease-out z-10",
-          panelOpen ? "w-80 opacity-100" : "w-0 opacity-0 pointer-events-none"
+          "absolute right-4 top-4 bottom-4 shadow-xl z-20 transition-all duration-300 ease-out flex flex-col",
+          panelOpen ? "translate-x-0 opacity-100 w-80 pointer-events-auto" : "translate-x-8 w-0 opacity-0 pointer-events-none"
         )}
         aria-hidden={!panelOpen}
       >
-        <div className={panelShellClass}>
-          <div className="px-3 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">AGEIS</div>
-              </div>
-
-              <button
-                type="button"
-                className={cx(
-                  "grid h-9 w-9 place-items-center rounded-lg border transition",
-                  isDark
-                    ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
-                    : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
-                )}
-                onClick={() => onPanelToggle(false)}
-                aria-label="Collapse panel"
-              >
-                <FiChevronLeft className="h-5 w-5" aria-hidden="true" />
-              </button>
+        <div className={cx("flex flex-col h-full rounded-xl overflow-hidden shadow-lg border", isDark ? "border-white/10 bg-neutral-950" : "border-neutral-200 bg-white")}>
+          <div className="px-4 py-3 border-b flex items-center justify-between gap-2 shadow-sm" style={{borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}}>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold">AGEIS</div>
             </div>
+
+            <button
+              type="button"
+              className={cx(
+                "grid h-8 w-8 place-items-center rounded-lg border transition",
+                isDark
+                  ? "border-white/10 bg-neutral-900 text-neutral-200 hover:bg-neutral-800"
+                  : "border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50"
+              )}
+              onClick={() => onPanelToggle(false)}
+              aria-label="Collapse panel"
+            >
+              <FiChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
           </div>
 
           <div className="flex-1 overflow-auto px-3 pb-3 space-y-3">
             {activeView === "layers" && panelOpen && (
-              <>
-                <div className="space-y-2">
-                  <div
-                    className={cx(
-                      "text-xs font-semibold",
-                      isDark ? "text-neutral-400" : "text-neutral-600"
-                    )}
-                  >
-                    Map Layers
-                  </div>
-
-                  {styleLayers.length === 0 ? (
-                    <div
-                      className={cx(
-                        "rounded-lg border p-3 text-center text-xs",
-                        isDark ? "border-white/10 text-neutral-500" : "border-neutral-200 text-neutral-400"
-                      )}
-                    >
-                      Loading layers...
-                    </div>
-                  ) : (
-                    <div className="space-y-1 max-h-[80vh] overflow-auto pr-2 pb-10">
-                      {styleLayers.map((layer) => {
-                        const isActive = activeStyleLayerIds.has(layer.id);
-                        return (
-                          <button
-                            key={layer.id}
-                            type="button"
-                            onClick={() => {
-                              const next = new Set(activeStyleLayerIds);
-                              if (next.has(layer.id)) next.delete(layer.id);
-                              else next.add(layer.id);
-                              onActiveStyleLayerIdsChange(next);
-                            }}
-                            className={cx(
-                              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition",
-                              isDark ? "hover:bg-white/5" : "hover:bg-black/5"
-                            )}
-                          >
-                            <div
-                              className={cx(
-                                "flex h-4 w-4 items-center justify-center rounded border shrink-0",
-                                isActive
-                                  ? isDark
-                                    ? "border-white/30 bg-white/10"
-                                    : "border-neutral-400 bg-black/5"
-                                  : isDark
-                                    ? "border-white/10"
-                                    : "border-neutral-200"
-                              )}
-                            >
-                              {isActive && <FiCheck className="h-3 w-3" />}
-                            </div>
-                            <span
-                              className={cx(
-                                "truncate",
-                                isDark ? "text-neutral-300" : "text-neutral-700"
-                              )}
-                            >
-                              {layer.id}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
+              <div className="text-sm text-neutral-500 pt-2">
+                Map filtering and layer controls have been moved to the floating panels above the map.
+              </div>
             )}
 
             {activeView === "analytics" && panelOpen && (
               <>
-                {selectedPlace.barangay ? (
-                  <AnalyticsPanel analytics={analytics} isDark={isDark} />
-                ) : (
-                  <div className={cx("text-sm", isDark ? "text-neutral-400" : "text-neutral-500")}>
-                    Select a barangay to view analytics.
-                  </div>
-                )}
+                <div className="text-xs font-semibold text-neutral-500 pt-2 mb-2">AI Planning Recommendations</div>
+                {/* Notice: Place selector removed; relying on global floating selector state passed down if needed, but here we just render AnalyticsPanel */}
+                <AnalyticsPanel analytics={analytics} isDark={isDark} />
               </>
             )}
 
