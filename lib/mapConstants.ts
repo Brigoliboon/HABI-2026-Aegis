@@ -3,6 +3,11 @@ export const POPUP_PROPERTY_KEYS = {
   DESCRIPTION: ["population", "place"] as const,
 } as const;
 
+export type StyleLayer = {
+  id: string;
+  type: string;
+};
+
 export type LayerCategory = {
   name: string;
   layers: string[];

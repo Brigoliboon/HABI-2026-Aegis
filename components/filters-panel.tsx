@@ -2,7 +2,7 @@
 
 import { FiX } from "react-icons/fi";
 
-type HouseholdFilters = {
+export type HouseholdFilters = {
   timeFrameStartYear: string;
   timeFrameEndYear: string;
   barangay: string;
@@ -24,7 +24,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-function normalizeYearRange(next: Pick<HouseholdFilters, "timeFrameStartYear" | "timeFrameEndYear">): {
+export function normalizeYearRange(next: Pick<HouseholdFilters, "timeFrameStartYear" | "timeFrameEndYear">): {
   timeFrameStartYear: string;
   timeFrameEndYear: string;
 } {

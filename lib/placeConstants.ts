@@ -1,24 +1,29 @@
-// Place hierarchy: region -> province -> barangay
+// Place hierarchy: region -> province -> municipality -> barangay
 export type PlaceHierarchy = {
   [region: string]: {
-    [province: string]: string[];
+    [province: string]: {
+      [municipality: string]: string[];
+    };
   };
 };
 
 export const PLACE_HIERARCHY: PlaceHierarchy = {
   "Region IX": {
-    "Zamboanga del Sur": [
-      "Barangay 1",
-      "Barangay 2",
-      "Barangay 3",
-    ],
-    "Zamboanga del Norte": [
-      "Barangay A",
-      "Barangay B",
-    ],
+    "Zamboanga del Sur": {
+      "Zamboanga City": ["Barangay 1", "Barangay 2", "Barangay 3"],
+      "Pagadian City": ["Brgy Upper", "Brgy Lower"],
+    },
+    "Zamboanga del Norte": {
+      "Dipolog City": ["Brgy Central", "Brgy North"],
+    },
   },
   "Region X": {
-    Misamis: ["Brgy X-1", "Brgy X-2"],
-    Agusan: ["Brgy Y-1"],
+    "Misamis Oriental": {
+      "Cagayan de Oro City": ["Brgy 1", "Brgy 2", "Brgy 3"],
+      "Gingoog City": ["Brgy A", "Brgy B"],
+    },
+    "Bukidnon": {
+      "Malaybalay City": ["Brgy 1", "Brgy 2"],
+    },
   },
 };

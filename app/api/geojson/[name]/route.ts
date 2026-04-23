@@ -1,4 +1,6 @@
-import { readGeoJsonDatasetFile } from "@/lib/geojson";
+import { isGeojsonDatasetName } from "@/lib/datasets";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 type RouteContext = {
   params: Promise<{
@@ -9,8 +11,21 @@ type RouteContext = {
 export async function GET(_: Request, ctx: RouteContext) {
   const { name } = await ctx.params;
   const baseName = name.replace(/\.geojson$/i, "");
+  const normalized = baseName.trim();
 
-  const contents = await readGeoJsonDatasetFile(baseName);
+  if (!normalized || !isGeojsonDatasetName(normalized)) {
+    return new Response(null, { status: 404 });
+  }
+
+  const filePath = path.join(process.cwd(), "data", "geojson", `${normalized}.geojson`);
+
+  let contents: string | null = null;
+  try {
+    contents = await readFile(filePath, "utf8");
+  } catch {
+    // fall through
+  }
+
   if (!contents) {
     return new Response(null, { status: 404 });
   }
