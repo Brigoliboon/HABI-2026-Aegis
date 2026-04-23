@@ -43,6 +43,7 @@ export default function AGEISMap({
   onViewportChange,
   onFeatureClick,
   onMapReady,
+  highlightRegion,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -265,6 +266,43 @@ export default function AGEISMap({
         applyCategorizedStyleLayerVisibility(map, activeStyleLayerIdsRef.current);
       }
       onMapReady?.(map);
+      
+      const boundarySourceId = "ph-admin-boundaries";
+      const fillLayerId = "region-highlight-fill";
+      const lineLayerId = "region-highlight-line";
+      
+      if (!map.getSource(boundarySourceId)) {
+        map.addSource(boundarySourceId, {
+          type: "geojson",
+          data: "/geojson/admin-boundary/country.geojson",
+        });
+      }
+      
+      if (!map.getLayer(fillLayerId)) {
+        map.addLayer({
+          id: fillLayerId,
+          type: "fill",
+          source: boundarySourceId,
+          filter: ["==", ["get", "adm1_en"], "Region X (Northern Mindanao)"],
+          paint: {
+            "fill-color": "#16a34a",
+            "fill-opacity": 0.4,
+          },
+        });
+      }
+      
+      if (!map.getLayer(lineLayerId)) {
+        map.addLayer({
+          id: lineLayerId,
+          type: "line",
+          source: boundarySourceId,
+          filter: ["==", ["get", "adm1_en"], "Region X (Northern Mindanao)"],
+          paint: {
+            "line-color": "#16a34a",
+            "line-width": 3,
+          },
+        });
+      }
     });
 
     map.on("style.load", () => {
