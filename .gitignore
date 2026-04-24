@@ -10,6 +10,8 @@
 !.yarn/releases
 !.yarn/versions
 
+# datasets
+public/geojson
 # testing
 /coverage
 

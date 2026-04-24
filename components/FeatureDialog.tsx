@@ -370,8 +370,8 @@ export default function FeatureDialog({
 
           {/* Individual Risks */}
           <div className="space-y-2">
-            {Object.entries<{ score: number; label: string } | number>(RISK_DATA).map(([key, data]) => {
-              if (key === "overall" || typeof data === "number") return null;
+            {Object.entries(RISK_DATA).map(([key, data]: [string, { score: number; label: string }]) => {
+              if (key === "overall") return null;
               return (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{data.label}</span>
@@ -473,7 +473,7 @@ export default function FeatureDialog({
                       onClick={() => {
                         if (shownPath?.type === "elementary" && shownPath?.profile === "walking") {
                           setShownPath(null);
-                        } else if (elementaryDirections.walking) {
+                        } else {
                           setShownPath({ type: "elementary", profile: "walking" });
                           onShowRoute?.(elementaryDirections.walking.geometry, "walking");
                           onClose();
@@ -515,7 +515,7 @@ export default function FeatureDialog({
                       onClick={() => {
                         if (shownPath?.type === "higher" && shownPath?.profile === "walking") {
                           setShownPath(null);
-                        } else if (higherEdDirections.walking) {
+                        } else {
                           setShownPath({ type: "higher", profile: "walking" });
                           onShowRoute?.(higherEdDirections.walking.geometry, "walking");
                           onClose();
