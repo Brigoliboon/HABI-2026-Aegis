@@ -175,3 +175,129 @@ export function getFacilityTypeLabel(type: FacilityType): string {
   };
   return labels[type] || "Facility";
 }
+
+/**
+ * Result of finding nearest hazard line (fault, landslide zone, etc.)
+ */
+export interface NearestHazardResult {
+  distance: number;
+  nearestPoint: [number, number] | null;
+  hazardFeature: LineFeature | null;
+  hazardName: string | null;
+}
+
+/**
+ * Find the nearest point on a hazard line (fault line, landslide zone, etc.)
+ * to a given point (community location).
+ *
+ * Uses turf.nearestPointOnLine to find the closest point on any LineString
+ * in the collection, then calculates the distance.
+ */
+export function findNearestHazardLine(
+  fromLngLat: [number, number],
+  hazardCollection: GeoJSONCollection
+): NearestHazardResult {
+  if (!hazardCollection.features || hazardCollection.features.length === 0) {
+    return {
+      distance: Infinity,
+      nearestPoint: null,
+      hazardFeature: null,
+      hazardName: null,
+    };
+  }
+
+  const fromPoint = turf.point(fromLngLat);
+  let closestResult: NearestHazardResult = {
+    distance: Infinity,
+    nearestPoint: null,
+    hazardFeature: null,
+    hazardName: null,
+  };
+
+  for (const feature of hazardCollection.features) {
+    if (feature.geometry.type !== "LineString") continue;
+
+    try {
+      const snapped = turf.nearestPointOnLine(
+        feature.geometry as any,
+        fromPoint
+      );
+
+      const snappedCoords = snapped.geometry.coordinates as [number, number];
+      const distance = turf.distance(fromPoint, snapped);
+
+      if (distance < closestResult.distance) {
+        closestResult = {
+          distance,
+          nearestPoint: snappedCoords,
+          hazardFeature: feature as LineFeature,
+          hazardName: (feature.properties?.name as string) || null,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return closestResult;
+}
+
+/**
+ * Find nearest hazard polygon (flood zone, etc.) to a point.
+ * Returns distance to polygon edge and the nearest point on the polygon.
+ */
+export function findNearestHazardPolygon(
+  fromLngLat: [number, number],
+  hazardCollection: GeoJSONCollection
+): NearestHazardResult {
+  if (!hazardCollection.features || hazardCollection.features.length === 0) {
+    return {
+      distance: Infinity,
+      nearestPoint: null,
+      hazardFeature: null,
+      hazardName: null,
+    };
+  }
+
+  const fromPoint = turf.point(fromLngLat);
+  let closestResult: NearestHazardResult = {
+    distance: Infinity,
+    nearestPoint: null,
+    hazardFeature: null,
+    hazardName: null,
+  };
+
+  for (const feature of hazardCollection.features) {
+    if (feature.geometry.type !== "Polygon") continue;
+
+    try {
+      // Convert polygon to line segments and find nearest point
+      const coords = feature.geometry.coordinates[0]; // Outer ring
+      if (!coords || coords.length < 2) continue;
+
+      // Create a LineString from polygon outer ring for nearest point calculation
+      const lineString = turf.lineString(coords);
+      const snapped = turf.nearestPointOnLine(lineString, fromPoint);
+
+      const snappedCoords = snapped.geometry.coordinates as [number, number];
+      const distance = turf.distance(fromPoint, snapped);
+
+      // Check if point is inside polygon
+      const isInside = turf.booleanPointInPolygon(fromPoint, feature.geometry as any);
+      const finalDistance = isInside ? 0 : distance;
+
+      if (finalDistance < closestResult.distance) {
+        closestResult = {
+          distance: finalDistance,
+          nearestPoint: isInside ? fromLngLat : snappedCoords,
+          hazardFeature: feature as any,
+          hazardName: (feature.properties?.name as string) || null,
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return closestResult;
+}

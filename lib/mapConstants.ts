@@ -17,28 +17,28 @@ export const LAYER_CATEGORIES: LayerCategory[] = [
   {
     name: "Hazards",
     layers: [
-      "active fault",
-      "landslide-bukidnon",
-      "Camiguin",
-      "Lanao",
-      "Misamis Oriental",
-      "Misamis Occidental",
+      "Bukidnon Landslide",
+      "Misamis Occidental Landslide",
+      "Misamis Oriental Landslide",
+      "Lanao Landslide",
+      "Camiguin Landslide",
+      "Active Fault",
     ],
   },
   {
-    name: "Transportation",
-    layers: ["road", "traffic"],
-  },
-  {
-    name: "Infrastructure",
-    layers: ["building", "Schools", "education facilities"],
-  },
-  {
     name: "Population",
-    layers: ["populated areas"],
+    layers: ["Populated Areas"],
   },
   {
-    name: "Environment",
-    layers: ["landuse"],
+    name: "Infrastructures",
+    layers: ["Schools", "Buildings"],
+  },
+  {
+    name: "Transport Access",
+    layers: ["Road", "Unpaved Road", "Traffic"],
+  },
+  {
+    name: "Land Profile",
+    layers: ["Land Use"],
   },
 ];

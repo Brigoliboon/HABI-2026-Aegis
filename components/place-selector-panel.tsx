@@ -7,7 +7,7 @@ import {
   FiSearch,
   FiX,
 } from "react-icons/fi";
-import { PLACE_HIERARCHY } from "@/lib/placeConstants";
+import { REGION_LIST, getProvinces, getMunicipalities, getBarangays } from "@/lib/phLocations";
 
 type PlaceSelection = {
   region: string | null;
@@ -41,23 +41,22 @@ export default function PlaceSelectorPanel({
   const stepperRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const regions = Object.keys(PLACE_HIERARCHY);
+  const regions = REGION_LIST;
 
-  const provinces = useMemo(() => {
-    if (!selectedPlace.region) return [];
-    return Object.keys(PLACE_HIERARCHY[selectedPlace.region] || {});
-  }, [selectedPlace.region]);
+  const provinces = useMemo(() => getProvinces(selectedPlace.region), [selectedPlace.region]);
 
-  const municipalities = useMemo(() => {
-    if (!selectedPlace.region || !selectedPlace.province) return [];
-    return Object.keys((PLACE_HIERARCHY[selectedPlace.region] || {})[selectedPlace.province] || {});
-  }, [selectedPlace.region, selectedPlace.province]);
+  const municipalities = useMemo(
+    () => getMunicipalities(selectedPlace.region, selectedPlace.province),
+    [selectedPlace.region, selectedPlace.province]
+  );
 
-  const barangays = useMemo(() => {
-    if (!selectedPlace.region || !selectedPlace.province || !selectedPlace.municipality) return barangayOptions;
-    const data = ((PLACE_HIERARCHY[selectedPlace.region] || {})[selectedPlace.province] || {})[selectedPlace.municipality];
-    return data || barangayOptions;
-  }, [selectedPlace.region, selectedPlace.province, selectedPlace.municipality, barangayOptions]);
+  const barangays = useMemo(
+    () =>
+      getBarangays(selectedPlace.region, selectedPlace.province, selectedPlace.municipality).length > 0
+        ? getBarangays(selectedPlace.region, selectedPlace.province, selectedPlace.municipality)
+        : barangayOptions,
+    [selectedPlace.region, selectedPlace.province, selectedPlace.municipality, barangayOptions]
+  );
 
   const allOptions = step === 0 ? regions : step === 1 ? provinces : step === 2 ? municipalities : barangays;
   const filteredOptions = query.trim()

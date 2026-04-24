@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  FiAlertTriangle,
   FiBarChart2,
+  FiChevronDown,
   FiChevronLeft,
   FiChevronRight,
   FiClipboard,
@@ -14,11 +17,24 @@ import {
   FiMoon,
   FiSettings,
   FiSun,
+  FiUsers,
+  FiGrid,
+  FiNavigation,
+  FiMap,
 } from "react-icons/fi";
 
 import { FiCheck } from "react-icons/fi";
 import AnalyticsPanel from "./analytics-panel";
 import PlaceSelectorPanel from "./place-selector-panel";
+import { MAP_LAYER_CATEGORIES, type MapLayerCategory } from "@/constants/MapLayers";
+
+export const CATEGORY_ICONS: Record<MapLayerCategory["name"], typeof FiAlertTriangle> = {
+  "Hazards": FiAlertTriangle,
+  "Population": FiUsers,
+  "Infrastructures": FiGrid,
+  "Transport Access": FiNavigation,
+  "Land Profile": FiMap,
+};
 
 type ViewKey = "filter" | "analytics" | "settings";
 
@@ -92,6 +108,17 @@ export default function Sidebar({
   activeStyleLayerIds,
   onActiveStyleLayerIdsChange,
 }: Props) {
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (name: string) => {
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
   const railClass = cx(
     "flex h-full w-20 flex-col items-center border-r py-4 z-20 shadow-md",
     "border-slate-800 bg-[#0f172a]" // Fixed dark blue theme
@@ -262,46 +289,84 @@ export default function Sidebar({
                       Loading layers...
                     </div>
                   ) : (
-                    <div className="space-y-1 max-h-full overflow-auto">
-                      {styleLayers.map((layer) => {
-                        const isActive = activeStyleLayerIds.has(layer.id);
+                    <div className="space-y-3 max-h-full overflow-auto">
+                      {MAP_LAYER_CATEGORIES.map((category) => {
+                        const categoryLayers = styleLayers.filter((layer) =>
+                          category.layers.includes(layer.id)
+                        );
+                        if (categoryLayers.length === 0) return null;
                         return (
-                          <button
-                            key={layer.id}
-                            type="button"
-                            onClick={() => {
-                              const next = new Set(activeStyleLayerIds);
-                              if (next.has(layer.id)) next.delete(layer.id);
-                              else next.add(layer.id);
-                              onActiveStyleLayerIdsChange(next);
-                            }}
-                            className={cx(
-                              "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition",
-                              isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                          <div key={category.name} className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleCategory(category.name)}
+                              className={cx(
+                                "flex w-full items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition",
+                                isDark ? "text-neutral-400 hover:text-neutral-200" : "text-neutral-600 hover:text-neutral-800"
+                              )}
+                            >
+                              {CATEGORY_ICONS[category.name] && (
+                                <span className="flex items-center">
+                                  {(() => {
+                                    const Icon = CATEGORY_ICONS[category.name];
+                                    return <Icon className="h-3.5 w-3.5" />;
+                                  })()}
+                                </span>
+                              )}
+                              <span className="flex-1 text-left">{category.name}</span>
+                              <FiChevronDown
+                                className={cx(
+                                  "h-3 w-3 transition-transform",
+                                  collapsedCategories.has(category.name) && "-rotate-90"
+                                )}
+                              />
+                            </button>
+                            {!collapsedCategories.has(category.name) && (
+                              <div className="space-y-0.5">
+                                {categoryLayers.map((layer) => {
+                                  const isActive = activeStyleLayerIds.has(layer.id);
+                                  return (
+                                    <button
+                                      key={layer.id}
+                                      type="button"
+                                      onClick={() => {
+                                        const next = new Set(activeStyleLayerIds);
+                                        if (next.has(layer.id)) next.delete(layer.id);
+                                        else next.add(layer.id);
+                                        onActiveStyleLayerIdsChange(next);
+                                      }}
+                                      className={cx(
+                                        "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition",
+                                        isDark ? "hover:bg-white/5" : "hover:bg-black/5"
+                                      )}
+                                    >
+                                      <div
+                                        className={cx(
+                                          "flex h-4 w-4 items-center justify-center rounded border",
+                                          isActive
+                                            ? isDark
+                                              ? "border-white/30 bg-white/10"
+                                              : "border-neutral-400 bg-black/5"
+                                            : isDark
+                                              ? "border-white/10"
+                                              : "border-neutral-200"
+                                        )}
+                                      >
+                                        {isActive && <FiCheck className="h-3 w-3" />}
+                                      </div>
+                                      <span
+                                        className={cx(
+                                          isDark ? "text-neutral-300" : "text-neutral-700"
+                                        )}
+                                      >
+                                        {layer.id}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             )}
-                          >
-                            <div
-                              className={cx(
-                                "flex h-4 w-4 items-center justify-center rounded border",
-                                isActive
-                                  ? isDark
-                                    ? "border-white/30 bg-white/10"
-                                    : "border-neutral-400 bg-black/5"
-                                  : isDark
-                                    ? "border-white/10"
-                                    : "border-neutral-200"
-                              )}
-                            >
-                              {isActive && <FiCheck className="h-3 w-3" />}
-                            </div>
-                            <span
-                              className={cx(
-                                isDark ? "text-neutral-300" : "text-neutral-700"
-                              )}
-                            >
-                              {layer.id}
-                            </span>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

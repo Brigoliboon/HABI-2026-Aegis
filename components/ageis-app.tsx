@@ -16,6 +16,7 @@ import FeatureDialog from "./FeatureDialog";
 import type { FeatureProperties } from "./FeatureDialog";
 
 import { LAYER_CATEGORIES, type LayerCategory, type StyleLayer } from "@/lib/mapConstants";
+import { fetchPlaceBounds } from "@/lib/phLocations";
 import type { MarkerData } from "@/types/locations";
 
 type ViewKey = "filter" | "analytics" | "settings";
@@ -133,6 +134,7 @@ export default function AGEISApp() {
   const [dialogProperties, setDialogProperties] = useState<FeatureProperties>({});
   const [dialogPosition, setDialogPosition] = useState({ lng: 0, lat: 0 });
   const [routeGeometry, setRouteGeometry] = useState<{ geometry: GeoJSON.LineString; profile: "walking" | "driving" } | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const searchDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -180,6 +182,59 @@ export default function AGEISApp() {
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
   }, [routeGeometry]);
+
+  const lastZoomedPlaceRef = useRef<string | null>(null);
+
+  const zoomToPlace = useCallback(async (place: typeof selectedPlace) => {
+    if (!mapRef.current || !mapRef.current.getStyle()) return;
+
+    let zoomLevel = 8;
+
+    if (place.barangay && place.municipality) {
+      zoomLevel = 16;
+    } else if (place.municipality) {
+      zoomLevel = 13;
+    } else if (place.province) {
+      zoomLevel = 10;
+    } else if (place.region) {
+      zoomLevel = 8;
+    } else {
+      return;
+    }
+
+    const bounds = await fetchPlaceBounds(
+      place.region,
+      place.province,
+      place.municipality,
+      place.barangay
+    );
+
+    if (!bounds || !mapRef.current?.getStyle()) return;
+
+    const placeKey = `${place.region}|${place.province}|${place.municipality}|${place.barangay}`;
+    lastZoomedPlaceRef.current = placeKey;
+
+    if (bounds.bbox && bounds.bbox.length === 4) {
+      mapRef.current.fitBounds(
+        [
+          [bounds.bbox[0], bounds.bbox[1]],
+          [bounds.bbox[2], bounds.bbox[3]],
+        ],
+        { padding: 60, duration: 900, maxZoom: zoomLevel }
+      );
+    } else if (bounds.center) {
+      mapRef.current.flyTo({
+        center: bounds.center,
+        zoom: zoomLevel,
+        duration: 900,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady) return;
+    zoomToPlace(selectedPlace);
+  }, [mapReady, selectedPlace, zoomToPlace]);
 
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -478,6 +533,7 @@ export default function AGEISApp() {
               }}
               onMapReady={(map) => {
                 mapRef.current = map;
+                setMapReady(true);
               }}
             />
           </div>
