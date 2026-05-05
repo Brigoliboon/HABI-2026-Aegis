@@ -111,7 +111,8 @@ export function getMunicipalityCode(regionCode: string, provinceName: string, mu
   const regionData = phAdminLevelList[regionCode as keyof typeof phAdminLevelList];
   if (!regionData) return null;
 
-  const provinceData = regionData.province_list[provinceName as keyof typeof regionData.province_list];
+  const provinceList = regionData.province_list as Record<string, { municipality_list: Record<string, { barangay_list: string[] }> }>;
+  const provinceData = provinceList[provinceName as keyof typeof provinceList];
   if (!provinceData) return null;
 
   const municipalityData = provinceData.municipality_list[municipalityName as keyof typeof provinceData.municipality_list];
