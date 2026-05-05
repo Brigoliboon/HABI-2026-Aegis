@@ -33,23 +33,25 @@ const REGION_MAPBOX_NAMES: Record<string, string> = {
 function transformToHierarchy(): PlaceHierarchy {
   const hierarchy: PlaceHierarchy = {};
 
-  for (const regionCode of Object.keys(phAdminLevelList)) {
-    const regionData = phAdminLevelList[regionCode as keyof typeof phAdminLevelList];
+  for (const regionCode of Object.keys(phAdminLevelList) as Array<keyof typeof phAdminLevelList>) {
+    const regionData = phAdminLevelList[regionCode];
     const regionName = regionData.region_name;
 
     if (!hierarchy[regionName]) {
       hierarchy[regionName] = {};
     }
 
-    for (const provinceName of Object.keys(regionData.province_list)) {
-      const provinceData = regionData.province_list[provinceName];
+    const provinceList = regionData.province_list as Record<string, { municipality_list: Record<string, { barangay_list: string[] }> }>;
+
+    for (const provinceName of Object.keys(provinceList)) {
+      const provinceData = provinceList[provinceName as keyof typeof provinceList];
 
       if (!hierarchy[regionName][provinceName]) {
         hierarchy[regionName][provinceName] = {};
       }
 
       for (const municipalityName of Object.keys(provinceData.municipality_list)) {
-        const municipalityData = provinceData.municipality_list[municipalityName];
+        const municipalityData = provinceData.municipality_list[municipalityName as keyof typeof provinceData.municipality_list];
         const barangays = municipalityData.barangay_list || [];
         hierarchy[regionName][provinceName][municipalityName] = barangays;
       }
