@@ -30,7 +30,7 @@ export interface LineFeature {
 
 export interface GeoJSONCollection {
   type: "FeatureCollection";
-  features: Array<PointFeature | PolygonFeature | LineFeature | GeoJSON.Feature>;
+  features: Array<PointFeature | PolygonFeature | LineFeature | GeoJSONFeature>;
 }
 
 export type FacilityType = "school" | "hospital" | "clinic" | "education";

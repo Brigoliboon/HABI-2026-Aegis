@@ -144,9 +144,9 @@ export async function getDirections(
         duration: route.duration,
         geometry: route.geometry,
         steps: route.legs[0].steps.map((step: Record<string, unknown>) => ({
-          instruction: step.maneuver?.instruction as string,
-          distance: step.distance as number,
-          duration: step.duration as number,
+          instruction: (step as any).maneuver?.instruction || "",
+          distance: (step as any).distance || 0,
+          duration: (step as any).duration || 0,
         })),
       };
     }
@@ -223,7 +223,7 @@ export async function scanFacilities(
   }
 
   // Check overlap with unpaved roads
-  const unpavedCollection = queryLayerForFacilities(map, "Unpaved Road", null);
+  const unpavedCollection = queryLayerForFacilities(map, "Unpaved Road", undefined);
   if (unpavedCollection) {
     if (result.directions.walking) {
       result.unpavedOverlap.walking = unpavedCollection.features.some((feature) =>

@@ -1,5 +1,5 @@
 import incomeData from "@/data/income.json";
-import type { IncomeData } from "../types";
+import type { IncomeData } from "@/components/dialog/types";
 
 // ─── Helper: safe lowercase ─────────────────────────────────────────────
 const lc = (s: string | undefined | null) => s?.toLowerCase().trim() || "";
@@ -28,10 +28,11 @@ function extractIncomeStats(
 function findProvince(provinceQuery: string) {
   const q = lc(provinceQuery);
   for (const region of Object.values(incomeData.data)) {
-    if (region.provinces) {
-      for (const [provName, provData] of Object.entries(region.provinces)) {
+    const regionWithProvinces = region as any;
+    if (regionWithProvinces.provinces) {
+      for (const [provName, provData] of Object.entries(regionWithProvinces.provinces)) {
         if (provName.toLowerCase().includes(q) || q.includes(provName.toLowerCase())) {
-          return { name: provName, ...extractIncomeStats(provData, provName, "Provincial") };
+          return extractIncomeStats(provData, provName, "Provincial");
         }
       }
     }
