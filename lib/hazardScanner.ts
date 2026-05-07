@@ -1,4 +1,5 @@
 import type mapboxgl from "mapbox-gl";
+import * as turf from "@turf/turf";
 import { findNearestHazardLine } from "./nearestFacility";
 
 // ─── Hazard Scan Result ───────────────────────────────────────────────────
@@ -109,7 +110,6 @@ function scanVolcanoes(map: mapboxgl.Map, lng: number, lat: number): {
     const nearbyVolcanoes: Array<{ name: string; distanceKm: number; risk: number }> = [];
 
     // Calculate distance to each volcano point using turf
-    const turf = require("@turf/turf");
     const fromPoint = turf.point([lng, lat]);
 
     for (const feature of volcanoFeatures) {

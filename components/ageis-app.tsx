@@ -13,7 +13,7 @@ import type { HouseholdFilters } from "./filters-panel";
 import OptionsPanel from "./options-panel";
 import Sidebar from "./sidebar";
 import FeatureDialog from "./FeatureDialog";
-import type { FeatureProperties } from "./FeatureDialog";
+import type { FeatureProperties } from "./dialog/types";
 
 import { LAYER_CATEGORIES, type LayerCategory, type StyleLayer } from "@/lib/mapConstants";
 import { fetchPlaceBounds } from "@/lib/phLocations";
