@@ -168,11 +168,11 @@ export default function AGEISApp() {
         type: "line",
         source: sourceId,
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { 
-          "line-color": "#16a34a", 
-          "line-width": 2, 
+        paint: {
+          "line-color": "#16a34a",
+          "line-width": 4,
           "line-opacity": 0.5,
-          "line-emissive-strength": 4,
+          "line-emissive-strength": 8,
         },
       });
     }
@@ -426,7 +426,17 @@ export default function AGEISApp() {
 
   const handleStyleLayersChange = useCallback(
     (nextLayers: StyleLayer[], initiallyActive: string[]) => {
-      setStyleLayers(nextLayers);
+      // Only update if the layers have actually changed
+      setStyleLayers(prevLayers => {
+        // Simple comparison by length and first layer id
+        if (prevLayers.length === nextLayers.length && 
+            prevLayers[0]?.id === nextLayers[0]?.id) {
+          return prevLayers;
+        }
+        return nextLayers;
+      });
+      
+      // Only set initial active layers if we don't have any yet
       setActiveStyleLayerIds((prev) => {
         if (prev.size > 0) return prev;
         return new Set(initiallyActive);
