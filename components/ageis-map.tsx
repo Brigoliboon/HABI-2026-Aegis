@@ -5,7 +5,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { MarkerData } from "@/types/locations";
 import { LAYER_CATEGORIES, POPUP_PROPERTY_KEYS } from "@/lib/mapConstants";
-import type { FeatureProperties } from "./FeatureDialog";
+import type { FeatureProperties } from "./dialog/types";
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 const STYLE = "mapbox://styles/boonjefferson/cmo5moe2k000n01rcahy17o82";

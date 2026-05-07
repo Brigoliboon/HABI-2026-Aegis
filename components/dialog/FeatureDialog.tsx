@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import type { LineString as GeoJSONLineString } from "geojson";
 import { findIncomeData } from "@/lib/incomeLookup";
 import { generateAISummary } from "@/lib/openrouter/client";
 import { getFacilityName } from "@/lib/nearestFacility";
