@@ -32,7 +32,7 @@ function findProvince(provinceQuery: string) {
     if (regionWithProvinces.provinces) {
       for (const [provName, provData] of Object.entries(regionWithProvinces.provinces)) {
         if (provName.toLowerCase().includes(q) || q.includes(provName.toLowerCase())) {
-          return extractIncomeStats(provData, provName, "Provincial");
+          return extractIncomeStats(provData as typeof incomeData.data["PHILIPPINES"], provName, "Provincial");
         }
       }
     }
@@ -44,11 +44,12 @@ function findProvince(provinceQuery: string) {
 function findCity(cityQuery: string) {
   const q = lc(cityQuery);
   for (const region of Object.values(incomeData.data)) {
-    if (region.subregions) {
-      for (const subregion of Object.values(region.subregions)) {
-        for (const [cityName, cityData] of Object.entries(subregion)) {
+    const regionWithSubregions = region as any;
+    if (regionWithSubregions.subregions) {
+      for (const subregion of Object.values(regionWithSubregions.subregions)) {
+        for (const [cityName, cityData] of Object.entries(subregion as Record<string, typeof incomeData.data["PHILIPPINES"]>)) {
           if (cityName.toLowerCase().includes(q) || q.includes(cityName.toLowerCase())) {
-            return { name: cityName, ...extractIncomeStats(cityData, cityName) };
+            return extractIncomeStats(cityData as typeof incomeData.data["PHILIPPINES"], cityName);
           }
         }
       }
@@ -63,7 +64,7 @@ function findRegion(regionQuery: string) {
   for (const [regionName, regionData] of Object.entries(incomeData.data)) {
     if (regionName === "PHILIPPINES") continue;
     if (regionName.toLowerCase().includes(q) || q.includes(regionName.toLowerCase())) {
-      return { name: regionName, ...extractIncomeStats(regionData, regionName) };
+      return extractIncomeStats(regionData, regionName);
     }
   }
   return null;
@@ -126,9 +127,10 @@ export function findIncomeData(locationName: string, address?: string | null): I
   for (const cand of candidates) {
     // 1. Direct top-level key match (region name)
     const keyUpper = cand.name.toUpperCase();
-    if (incomeData.data[keyUpper]) {
+    const regionData = (incomeData.data as any)[keyUpper];
+    if (regionData) {
       if (keyUpper === "PHILIPPINES") return findNational();
-      return { location: keyUpper, ...extractIncomeStats(incomeData.data[keyUpper], keyUpper) };
+      return { location: keyUpper, ...extractIncomeStats(regionData, keyUpper) };
     }
 
     // 2. Feature name lookup (tries city, then province, then region)

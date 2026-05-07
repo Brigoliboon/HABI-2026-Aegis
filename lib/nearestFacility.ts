@@ -93,7 +93,7 @@ export function findNearestFacility(
        nearestResult = {
          facility: feature as PointFeature,
          distance,
-         coordinates: feature.geometry.coordinates,
+          coordinates: feature.geometry.coordinates as [number, number],
        };
      }
    }
@@ -120,10 +120,10 @@ export function snapToRoad(
     if (feature.geometry.type !== "LineString") continue;
 
 try {
-       const snapped = turf.nearestPointOnLine(
-         { type: "LineString" as const, coordinates: feature.geometry.coordinates } as turf.Feature<turf.LineString>,
-         pointFeature
-       );
+        const snapped = turf.nearestPointOnLine(
+          { type: "LineString" as const, coordinates: feature.geometry.coordinates },
+          pointFeature
+        );
 
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(pointFeature, snapped);
@@ -183,7 +183,7 @@ export function getFacilityTypeLabel(type: FacilityType): string {
 export interface NearestHazardResult {
   distance: number;
   nearestPoint: [number, number] | null;
-  hazardFeature: LineFeature | null;
+  hazardFeature: LineFeature | PolygonFeature | null;
   hazardName: string | null;
 }
 
@@ -219,10 +219,10 @@ export function findNearestHazardLine(
     if (feature.geometry.type !== "LineString") continue;
 
 try {
-       const snapped = turf.nearestPointOnLine(
-         { type: "LineString" as const, coordinates: feature.geometry.coordinates } as turf.Feature<turf.LineString>,
-         fromPoint
-       );
+        const snapped = turf.nearestPointOnLine(
+          { type: "LineString" as const, coordinates: feature.geometry.coordinates },
+          fromPoint
+        );
 
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(fromPoint, snapped);

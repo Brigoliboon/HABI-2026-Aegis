@@ -1,3 +1,5 @@
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
 interface MapboxFeature {
   text: string;
   center: [number, number];
