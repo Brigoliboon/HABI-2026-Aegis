@@ -15,17 +15,6 @@ export type LayerCategory = {
 
 export const LAYER_CATEGORIES: LayerCategory[] = [
   {
-    name: "Hazards",
-    layers: [
-      "Bukidnon Landslide",
-      "Misamis Occidental Landslide",
-      "Misamis Oriental Landslide",
-      "Lanao Landslide",
-      "Camiguin Landslide",
-      "Active Fault",
-    ],
-  },
-  {
     name: "Population",
     layers: ["Populated Areas"],
   },
@@ -40,5 +29,17 @@ export const LAYER_CATEGORIES: LayerCategory[] = [
   {
     name: "Land Profile",
     layers: ["Land Use"],
+  },
+  {
+    name: "Hazards",
+    layers: [
+      "Bukidnon Landslide",
+      "Misamis Occidental Landslide",
+      "Misamis Oriental Landslide",
+      "Lanao Landslide",
+      "Camiguin Landslide",
+      "Active Fault",
+      "volcanoes",
+    ],
   },
 ];

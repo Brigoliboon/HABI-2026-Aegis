@@ -66,7 +66,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export default function AGEISApp() {
-  const [activeView, setActiveView] = useState<ViewKey>("analytics");
+  const [activeView, setActiveView] = useState<ViewKey>("filter");
   const [panelOpen, setPanelOpen] = useState(true);
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [mapStyleId, setMapStyleId] = useState<MapStyleOption["id"]>("ageis");

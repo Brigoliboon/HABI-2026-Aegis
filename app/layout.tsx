@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Aegis: AI-Driven Geospatial Education Decision Support System",
   description: "AI-Driven Geospatial Education Decision Support System",
   icons: {
-    icon: [{ url: "/AGEIS_logo.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/AGEIS_logo.png", type: "image/png" }],
   },
 };
 

@@ -119,10 +119,9 @@ export default function PlaceSelectorPanel({
         ref={stepperRef}
         className="flex items-center gap-2 overflow-x-auto scroll-smooth no-scrollbar py-1"
       >
-        {STEP_KEYS.map((key, idx) => {
-          const value = selectedPlace[key];
-          const isActive = idx <= step;
-          const isCurrent = idx === step;
+{STEP_KEYS.map((key, idx) => {
+           const isActive = idx <= step;
+           const isCurrent = idx === step;
           
           return (
             <div

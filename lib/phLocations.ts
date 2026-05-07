@@ -99,7 +99,7 @@ export function getProvinceCode(regionCode: string, provinceName: string): strin
   const regionData = phAdminLevelList[regionCode as keyof typeof phAdminLevelList];
   if (!regionData) return null;
 
-  for (const [code, provData] of Object.entries(regionData.province_list)) {
+  for (const [code] of Object.entries(regionData.province_list)) {
     if (code === provinceName) {
       return code;
     }

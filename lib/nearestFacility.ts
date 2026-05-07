@@ -64,41 +64,41 @@ export function getCentroid(polygon: PolygonFeature): [number, number] {
  * Find nearest point facility using Turf.js nearestPoint
  */
 export function findNearestFacility(
-  fromLngLat: [number, number],
-  facilityCollection: GeoJSONCollection
-): NearestFacilityResult {
-  if (!facilityCollection.features || facilityCollection.features.length === 0) {
-    return {
-      facility: null,
-      distance: Infinity,
-      coordinates: [0, 0],
-    };
+   fromLngLat: [number, number],
+   facilityCollection: GeoJSONCollection
+  ): NearestFacilityResult {
+   if (!facilityCollection.features || facilityCollection.features.length === 0) {
+     return {
+       facility: null,
+       distance: Infinity,
+       coordinates: [0, 0],
+     };
+   }
+
+   const fromPoint = turf.point(fromLngLat);
+
+   let nearestResult: NearestFacilityResult = {
+     facility: null,
+     distance: Infinity,
+     coordinates: [0, 0],
+   };
+
+   for (const feature of facilityCollection.features) {
+     if (feature.geometry.type !== "Point") continue;
+
+     const distance = turf.distance(fromPoint, feature as PointFeature & { geometry: { type: "Point"; coordinates: [number, number] } });
+
+     if (nearestResult.facility === null || distance < nearestResult.distance) {
+       nearestResult = {
+         facility: feature as PointFeature,
+         distance,
+         coordinates: feature.geometry.coordinates,
+       };
+     }
+   }
+
+   return nearestResult;
   }
-
-  const fromPoint = turf.point(fromLngLat);
-
-  let nearestResult: NearestFacilityResult = {
-    facility: null,
-    distance: Infinity,
-    coordinates: [0, 0],
-  };
-
-  for (const feature of facilityCollection.features) {
-    if (feature.geometry.type !== "Point") continue;
-
-    const distance = turf.distance(fromPoint, feature as any);
-
-    if (nearestResult.facility === null || distance < nearestResult.distance) {
-      nearestResult = {
-        facility: feature as PointFeature,
-        distance,
-        coordinates: feature.geometry.coordinates,
-      };
-    }
-  }
-
-  return nearestResult;
-}
 
 /**
  * Snap a point to the nearest line (road network) using Turf.js nearestPointOnLine
@@ -118,11 +118,11 @@ export function snapToRoad(
   for (const feature of roadNetwork.features) {
     if (feature.geometry.type !== "LineString") continue;
 
-    try {
-      const snapped = turf.nearestPointOnLine(
-        feature.geometry as any,
-        pointFeature
-      );
+try {
+       const snapped = turf.nearestPointOnLine(
+         { type: "LineString" as const, coordinates: feature.geometry.coordinates } as turf.Feature<turf.LineString>,
+         pointFeature
+       );
 
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(pointFeature, snapped);
@@ -217,11 +217,11 @@ export function findNearestHazardLine(
   for (const feature of hazardCollection.features) {
     if (feature.geometry.type !== "LineString") continue;
 
-    try {
-      const snapped = turf.nearestPointOnLine(
-        feature.geometry as any,
-        fromPoint
-      );
+try {
+       const snapped = turf.nearestPointOnLine(
+         { type: "LineString" as const, coordinates: feature.geometry.coordinates } as turf.Feature<turf.LineString>,
+         fromPoint
+       );
 
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(fromPoint, snapped);
@@ -282,16 +282,16 @@ export function findNearestHazardPolygon(
       const snappedCoords = snapped.geometry.coordinates as [number, number];
       const distance = turf.distance(fromPoint, snapped);
 
-      // Check if point is inside polygon
-      const isInside = turf.booleanPointInPolygon(fromPoint, feature.geometry as any);
-      const finalDistance = isInside ? 0 : distance;
+// Check if point is inside polygon
+       const isInside = turf.booleanPointInPolygon(fromPoint, { type: "Polygon" as const, coordinates: feature.geometry.coordinates });
+       const finalDistance = isInside ? 0 : distance;
 
-      if (finalDistance < closestResult.distance) {
-        closestResult = {
-          distance: finalDistance,
-          nearestPoint: isInside ? fromLngLat : snappedCoords,
-          hazardFeature: feature as any,
-          hazardName: (feature.properties?.name as string) || null,
+       if (finalDistance < closestResult.distance) {
+         closestResult = {
+           distance: finalDistance,
+           nearestPoint: isInside ? fromLngLat : snappedCoords,
+           hazardFeature: { ...feature, geometry: { type: "Polygon" as const, coordinates: feature.geometry.coordinates } } as PolygonFeature,
+           hazardName: (feature.properties?.name as string) || null,
         };
       }
     } catch {

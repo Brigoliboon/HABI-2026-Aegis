@@ -1,4 +1,12 @@
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+interface MapboxFeature {
+  text: string;
+  center: [number, number];
+  context?: Array<{ id: string; text: string }>;
+}
+
+interface MapboxResponse {
+  features: MapboxFeature[];
+}
 
 export type Region = {
   name: string;
@@ -72,13 +80,13 @@ export async function fetchPlaceSuggestions(query: string): Promise<Array<{
 
     const data = await response.json();
 
-    return data.features.map((feature: any) => {
-      const context = feature.context || [];
-      let placeType: "region" | "province" | "municipality" | "barangay" = "municipality";
+return data.features.map((feature: MapboxFeature) => {
+       const context = feature.context || [];
+       let placeType: "region" | "province" | "municipality" | "barangay" = "municipality";
 
-      const regionCtx = context.find((c: any) => c.id.startsWith("region."));
-      const provinceCtx = context.find((c: any) => c.id.startsWith("province."));
-      const placeCtx = context.find((c: any) => c.id.startsWith("place."));
+       const regionCtx = context.find((c: { id: string }) => c.id.startsWith("region."));
+       const provinceCtx = context.find((c: { id: string }) => c.id.startsWith("province."));
+       const placeCtx = context.find((c: { id: string }) => c.id.startsWith("place."));
 
       if (regionCtx) placeType = "region";
       else if (provinceCtx) placeType = "province";
@@ -146,7 +154,7 @@ export async function fetchMunicipalities(provinceName: string): Promise<string[
 
     const data = await response.json();
 
-    return data.features.map((f: any) => f.text);
+    return data.features.map((f: MapboxFeature) => f.text);
   } catch (error) {
     console.error("Failed to fetch municipalities:", error);
     return [];
@@ -165,9 +173,9 @@ export async function fetchBarangays(municipalityName: string): Promise<string[]
 
     const data = await response.json();
 
-    return data.features
-      .filter((f: any) => f.text.toLowerCase().includes("brgy") || f.text.toLowerCase().includes("barangay"))
-      .map((f: any) => f.text);
+return data.features
+       .filter((f: MapboxFeature) => f.text.toLowerCase().includes("brgy") || f.text.toLowerCase().includes("barangay"))
+       .map((f: MapboxFeature) => f.text);
   } catch (error) {
     console.error("Failed to fetch barangays:", error);
     return [];

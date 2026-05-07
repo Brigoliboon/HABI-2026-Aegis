@@ -1,0 +1,1457 @@
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import mapboxgl from "mapbox-gl";
+import {
+  findNearestFacility,
+  findNearestHazardLine,
+  findNearestHazardPolygon,
+  formatDistance,
+  getFacilityName,
+  type NearestFacilityResult,
+  type GeoJSONCollection,
+} from "@/lib/nearestFacility";
+import AISummary from "./AISummary";
+import incomeData from "@/data/income.json";
+
+// ─── Volcano color palette ────────────────────────────────────────
+const VOLCANO_COLORS = { high: "#ef4444", moderate: "#f97316", low: "#eab308" };
+interface MiniBarChartProps {
+  data: Array<{ label: string; value: number; color: string }>;
+  height?: number;
+  maxValue?: number;
+}
+ function MiniBarChart({ data, height = 32, maxValue }: MiniBarChartProps) {
+   const max = maxValue ?? Math.max(...data.map((d) => d.value), 1);
+   return (
+     <div className="flex items-end gap-2" style={{ height }}>
+       {data.map((d, i) => (
+         <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+           <div
+             className="w-full rounded-t transition-all duration-700 ease-out"
+             style={{
+               height: `${(d.value / max) * (height - 20)}px`,
+               backgroundColor: d.color,
+               opacity: 0.9,
+               minHeight: "4px",
+             }}
+           />
+           <span className="text-[10px] text-gray-600 uppercase tracking-wide font-semibold">
+             {d.label}
+           </span>
+         </div>
+       ))}
+     </div>
+   );
+ }
+// ─── Sparkline (SVG) ───────────────────────────────────────────────
+interface SparklineProps {
+  data: number[];
+  width?: number;
+  height?: number;
+  color?: string;
+  showDots?: boolean;
+}
+function Sparkline({ data, width = 100, height = 28, color = "#3b82f6", showDots = false }: SparklineProps) {
+  if (data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data.map((v, i) => ({
+    x: (i / (data.length - 1)) * width,
+    y: height - ((v - min) / range) * (height - 4) - 2,
+  }));
+  const pathD = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" />
+      {showDots &&
+        points.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={2} fill={color} opacity={i === points.length - 1 ? 1 : 0.4} />
+        ))}
+    </svg>
+  );
+}
+// ─── Horizontal Risk Bar ───────────────────────────────────────────
+interface RiskBarProps {
+  label: string;
+  score: number;
+  distance?: string;
+  animate?: boolean;
+}
+ function RiskBar({ label, score, distance, animate = true }: RiskBarProps) {
+   const color =
+     score >= 70 ? "#dc2626" : score >= 40 ? "#f59e0b" : "#16a34a";
+   const label2 =
+     score >= 70 ? "High" : score >= 40 ? "Moderate" : "Low";
+   return (
+     <div className="group">
+       <div className="flex items-center justify-between mb-2">
+         <div className="flex items-center gap-2">
+           <span className="text-xs text-gray-600 uppercase tracking-wider font-semibold">{label}</span>
+           {distance && (
+             <span className="text-[10px] text-gray-400 font-mono">{distance}</span>
+           )}
+         </div>
+         <div className="flex items-center gap-2">
+           <span className="text-lg font-black" style={{ color }}>{score}</span>
+           <span
+             className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+             style={{ backgroundColor: `${color}18`, color }}
+           >
+             {label2}
+           </span>
+         </div>
+       </div>
+       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+         <div
+           className={`h-full rounded-full transition-all ${animate ? "duration-1000 ease-out" : ""}`}
+           style={{ width: `${score}%`, backgroundColor: color }}
+         />
+       </div>
+     </div>
+   );
+ }
+// ─── Radial Gauge (kept for overview, refined) ─────────────────────
+interface RadialGaugeProps {
+  value: number;
+  size?: number;
+  strokeWidth?: number;
+  label?: string;
+  sublabel?: string;
+  showScore?: boolean;
+  colorZones?: Array<{ max: number; color: string }>;
+}
+function RadialGauge({
+  value,
+  size = 120,
+  strokeWidth = 12,
+  label,
+  sublabel,
+  showScore = true,
+  colorZones = [
+    { max: 39, color: "#16a34a" },
+    { max: 69, color: "#f59e0b" },
+    { max: 100, color: "#dc2626" },
+  ],
+}: RadialGaugeProps) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progress = ((360 - (value / 100) * 360) / 360) * circumference;
+  const getColor = () => {
+    for (const zone of colorZones) {
+      if (value <= zone.max) return zone.color;
+    }
+    return colorZones[colorZones.length - 1].color;
+  };
+  const color = getColor();
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="transform -rotate-90" viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb30" strokeWidth={strokeWidth} fill="none" />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={progress}
+            strokeLinecap="round"
+            className="transition-all duration-1000 ease-out"
+            opacity={0.8}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {showScore && (
+            <span className="text-3xl font-black tracking-tight" style={{ color }}>
+              {Math.round(value)}
+            </span>
+          )}
+          {label && <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-widest mt-0.5">{label}</span>}
+        </div>
+      </div>
+      {sublabel && <p className="text-xs text-gray-500 mt-1.5 font-medium">{sublabel}</p>}
+    </div>
+  );
+}
+export type FeatureProperties = Record<string, unknown>;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+interface DirectionsResult {
+  distance: number;
+  duration: number;
+  geometry: GeoJSON.LineString;
+  steps: Array<{
+    instruction: string;
+    distance: number;
+    duration: number;
+  }>;
+}
+interface RouteDirections {
+  walking: DirectionsResult | null;
+  driving: DirectionsResult | null;
+}
+const POPULATED_AREAS_LAYER = "populated areas";
+const SCHOOLS_LAYER = "Schools";
+const EDUCATION_LAYER = "education facilities";
+const ROAD_LAYER = "road";
+// Hazard layer IDs
+const FAULT_LINE_LAYER = "Active Fault";
+const FLOOD_ZONE_LAYER = "Flood Zones";
+const LANDSLIDE_LAYER = "Landslide Areas";
+const SCHOOL_MAKI_ELEMENTARY = "school";
+const SCHOOL_MAKI_COLLEGE = "college";
+// ─── Static Data ───────────────────────────────────────────────────
+// Dynamic hazard data is fetched via scanForHazards()
+
+// ─── Type for income data ─────────────────────────────────────────────
+type IncomeData = {
+  location: string;
+  avgIncome: number;
+  percentChange: number;
+  lowestDecile: number;
+  highestDecile: number;
+  incomeInequality: number;
+};
+
+// ─── Helper: extract stats from a data node ───────────────────────────
+const extractIncomeStats = (data: any, name: string, suffix?: string) => ({
+  location: suffix ? `${name} (${suffix})` : name,
+  avgIncome: data.value_2023?.["All Income Groups"] * 1000 || 0,
+  percentChange: data.percent_change?.["All Income Groups"] || 0,
+  lowestDecile: data.value_2023?.["1st Decile"] * 1000 || 0,
+  highestDecile: data.value_2023?.["10th Decile"] * 1000 || 0,
+  incomeInequality: data.value_2023?.["10th Decile"]
+    ? (data.value_2023["10th Decile"] / data.value_2023["1st Decile"]) - 1
+    : 0,
+});
+
+// ─── Helper: safe lowercase ───────────────────────────────────────────
+const lc = (s: string | undefined | null) => s?.toLowerCase().trim() || "";
+
+// ─── Function: find income data for a location with admin hierarchy ────
+// Address format from Mapbox reverse: "barangay, city/municipality, province, region, country"
+function findIncomeData(locationName: string, address?: string | null): IncomeData {
+  // Parse address into admin levels
+  let parsed = { barangay: "", city: "", province: "", region: "" } as Record<string, string>;
+  if (address) {
+    const parts = address.split(',').map(p => p.trim());
+    if (parts.length >= 4) {
+      parsed = { barangay: lc(parts[0]), city: lc(parts[1]), province: lc(parts[2]), region: lc(parts[3]) };
+    } else if (parts.length >= 3) {
+      parsed = { barangay: "", city: lc(parts[0]), province: lc(parts[1]), region: lc(parts[2]) };
+    }
+  }
+
+  const searchName = lc(locationName);
+  const candidates: Array<{ name: string; level: string }> = [];
+
+  // Build search cascade – specific → broad
+  if (parsed.city) candidates.push({ name: parsed.city, level: "city" });
+  if (parsed.province) candidates.push({ name: parsed.province, level: "province" });
+  if (parsed.region) candidates.push({ name: parsed.region, level: "region" });
+  if (searchName) candidates.unshift({ name: searchName, level: "feature" });
+
+  // ── Search helpers ───────────────────────────────────────────────────
+  // 1. Region → province lookup
+  const findProvince = (provinceQuery: string) => {
+    for (const region of Object.values(incomeData.data)) {
+      if (region.provinces) {
+        for (const [provName, provData] of Object.entries(region.provinces)) {
+          if (provName.toLowerCase().includes(provinceQuery) || provinceQuery.includes(provName.toLowerCase())) {
+            return { name: provName, ...extractIncomeStats(provData, provName, "Provincial") };
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  // 2. Region → subregion (city/municipality) lookup
+  const findCity = (cityQuery: string) => {
+    for (const region of Object.values(incomeData.data)) {
+      if (region.subregions) {
+        for (const subregion of Object.values(region.subregions)) {
+          for (const [cityName, cityData] of Object.entries(subregion)) {
+            if (cityName.toLowerCase().includes(cityQuery) || cityQuery.includes(cityName.toLowerCase())) {
+              return { name: cityName, ...extractIncomeStats(cityData, cityName) };
+            }
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const findRegion = (regionQuery: string) => {
+    for (const [regionName, regionData] of Object.entries(incomeData.data)) {
+      if (regionName.toLowerCase().includes(regionQuery) || regionQuery.includes(regionName.toLowerCase())) {
+        if (regionName === "PHILIPPINES") continue; // skip national here
+        return { name: regionName, ...extractIncomeStats(regionData, regionName) };
+      }
+    }
+    return null;
+  };
+
+  const findNational = () => {
+    const nat = incomeData.data["PHILIPPINES"];
+    return { name: "Philippines", ...extractIncomeStats(nat, "Philippines (National Average)") };
+  };
+
+  const findFeature = (query: string) => {
+    // Try city
+    const city = findCity(query);
+    if (city) return city;
+    // Try province
+    const prov = findProvince(query);
+    if (prov) return prov;
+    // Try region
+    const reg = findRegion(query);
+    if (reg) return reg;
+    return null;
+  };
+
+  // ── Search cascade ───────────────────────────────────────────────────
+  for (const cand of candidates) {
+    // Exact top-level key match (region name or PHILIPPINES)
+    const keyUpper = cand.name.toUpperCase();
+    if (incomeData.data[keyUpper]) {
+      if (keyUpper === "PHILIPPINES") return findNational();
+      return { name: keyUpper, ...extractIncomeStats(incomeData.data[keyUpper], keyUpper) };
+    }
+
+    // Try feature name lookup
+    if (cand.level === "feature") {
+      const found = findFeature(cand.name);
+      if (found) return found;
+      continue;
+    }
+
+    // City level (from barangay or direct city click)
+    if (cand.level === "city") {
+      const found = findCity(cand.name);
+      if (found) return found;
+    }
+
+    // Province level (if no city found)
+    if (cand.level === "province") {
+      const found = findProvince(cand.name);
+      if (found) return found;
+    }
+
+    // Region level (if no province found)
+    if (cand.level === "region") {
+      const found = findRegion(cand.name);
+      if (found) return found;
+    }
+  }
+
+  // Final fallback – national average
+  return findNational();
+}
+
+type Props = {
+  isOpen: boolean;
+  onClose: () => void;
+  properties: FeatureProperties;
+  titleKey?: string;
+  descriptionKeys?: string[];
+  position?: { lng: number; lat: number };
+  mapRef?: React.RefObject<mapboxgl.Map | null>;
+  onShowRoute?: (geometry: GeoJSON.LineString, profile: "walking" | "driving") => void;
+};
+export default function FeatureDialog({
+  isOpen,
+  onClose,
+  properties,
+  titleKey = "name",
+  descriptionKeys = ["population", "place"],
+  position,
+  mapRef,
+  onShowRoute,
+}: Props) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+  const [nearestElementary, setNearestElementary] = useState<NearestFacilityResult | null>(null);
+  const [nearestHigherEd, setNearestHigherEd] = useState<NearestFacilityResult | null>(null);
+  const [elementaryDirections, setElementaryDirections] = useState<RouteDirections>({ walking: null, driving: null });
+  const [higherEdDirections, setHigherEdDirections] = useState<RouteDirections>({ walking: null, driving: null });
+  const [isSearching, setIsSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [shownPath, setShownPath] = useState<{ type: "elementary" | "higher"; profile: "walking" | "driving" } | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "hazards" | "economy" | "education">("overview");
+// Income data state
+   const [incomeDataState, setIncomeDataState] = useState<IncomeData | null>(null);
+  // Hazard proximity state (in kilometers)
+  const [faultDistance, setFaultDistance] = useState<number | null>(null);
+  const [floodDistance, setFloodDistance] = useState<number | null>(null);
+  const [landslideDistance, setLandslideDistance] = useState<number | null>(null);
+  const [landslideIntensity, setLandslideIntensity] = useState<number | null>(null);
+  // Volcano state - count within radius & proximity
+  const [volcanoCount, setVolcanoCount] = useState<number>(0);
+  const [activeVolcanoes, setActiveVolcanoes] = useState<Array<{name: string, distanceKm: number, risk: number}>>([]);
+  const [isScanningHazards, setIsScanningHazards] = useState(false);
+  const [locationAddress, setLocationAddress] = useState<string | null>(null);
+  const getAddress = useCallback(async (lng: number, lat: number): Promise<void> => {
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=address,place,locality,postcode`
+      );
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        setLocationAddress(data.features[0].place_name);
+      } else {
+        setLocationAddress(null);
+      }
+    } catch (e) {
+      console.error("Error fetching address:", e);
+      setLocationAddress(null);
+    }
+  }, []);
+  const getDirections = useCallback(
+    async (from: [number, number], to: [number, number], profile: "walking" | "driving"): Promise<DirectionsResult | null> => {
+      try {
+        const coordinates = `${from[0]},${from[1]};${to[0]},${to[1]}`;
+        const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinates}?geometries=geojson&steps=true&annotations=distance,duration&overview=full&access_token=${MAPBOX_TOKEN}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (data.code === "Ok" && data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          return {
+            distance: route.distance,
+            duration: route.duration,
+            geometry: route.geometry,
+            steps: route.legs[0].steps.map((step: { maneuver: { instruction: string }; distance: number; duration: number }) => ({
+              instruction: step.maneuver.instruction,
+              distance: step.distance,
+              duration: step.duration,
+            })),
+          };
+        }
+        return null;
+      } catch (e) {
+        console.error("Error fetching directions:", e);
+        return null;
+      }
+    },
+    []
+  );
+  const queryLayerForFacilities = useCallback(
+  (map: mapboxgl.Map, layerId: string, typeFilter?: string | string[]) => {
+    // First try rendered features (fast, respects current viewport)
+    let features = map.queryRenderedFeatures({ layers: [layerId] });
+    
+    // If no rendered features, try querying the source directly
+    if (features.length === 0) {
+      const layer = map.getLayer(layerId);
+      if (layer?.source) {
+        features = map.querySourceFeatures(layer.source as string);
+      }
+    }
+    
+    if (features.length === 0) return null;
+    let filteredFeatures = features;
+    if (typeFilter) {
+      if (Array.isArray(typeFilter)) {
+        filteredFeatures = features.filter((f) => {
+          const props = f.properties as Record<string, unknown>;
+          const makiValue = props.maki as string | undefined;
+          return makiValue && typeFilter.includes(makiValue);
+        });
+      } else {
+        filteredFeatures = features.filter((f) => {
+          const props = f.properties as Record<string, unknown>;
+          const makiValue = props.maki as string | undefined;
+          return makiValue === typeFilter;
+        });
+      }
+    }
+    if (filteredFeatures.length === 0) return null;
+    const collection: GeoJSONCollection = {
+      type: "FeatureCollection",
+      features: filteredFeatures
+        .filter((f) => f.geometry?.type === "Point")
+        .map((f) => {
+          const coords = (f.geometry as GeoJSON.Point).coordinates;
+          return {
+            type: "Feature" as const,
+            geometry: {
+              type: "Point" as const,
+              coordinates: coords as [number, number],
+            },
+            properties: f.properties || {},
+          };
+        }),
+    };
+    return collection;
+  },
+  []
+);
+  const scanForFacilities = useCallback(async () => {
+    if (!isOpen || !position || !mapRef?.current) return;
+    const map = mapRef.current;
+    const name = properties[titleKey as keyof FeatureProperties] as string | undefined;
+    if (!name || !name.trim()) return;
+    setIsSearching(true);
+    setError(null);
+    try {
+      const fromLngLat: [number, number] = [position.lng, position.lat];
+      // Elementary
+      const elementaryCollection = queryLayerForFacilities(map, SCHOOLS_LAYER, SCHOOL_MAKI_ELEMENTARY);
+      if (elementaryCollection) {
+        const nearest = findNearestFacility(fromLngLat, elementaryCollection);
+        if (nearest.facility) {
+          setNearestElementary(nearest);
+          const [walking, driving] = await Promise.all([
+            getDirections(fromLngLat, nearest.facility.geometry.coordinates, "walking"),
+            getDirections(fromLngLat, nearest.facility.geometry.coordinates, "driving"),
+          ]);
+          setElementaryDirections({ walking, driving });
+        }
+      }
+      // College
+      const collegeCollection = queryLayerForFacilities(map, SCHOOLS_LAYER, SCHOOL_MAKI_COLLEGE);
+      if (collegeCollection) {
+        const nearest = findNearestFacility(fromLngLat, collegeCollection);
+        if (nearest.facility) {
+          setNearestHigherEd(nearest);
+          const [walking, driving] = await Promise.all([
+            getDirections(fromLngLat, nearest.facility.geometry.coordinates, "walking"),
+            getDirections(fromLngLat, nearest.facility.geometry.coordinates, "driving"),
+          ]);
+          setHigherEdDirections({ walking, driving });
+        }
+      }
+    } catch (e) {
+      console.error("Error scanning facilities:", e);
+      setError("Error scanning facilities");
+    } finally {
+      setIsSearching(false);
+    }
+  }, [isOpen, position, mapRef, properties, titleKey, queryLayerForFacilities, getDirections]);
+  const scanForHazards = useCallback(async () => {
+    if (!isOpen || !position || !mapRef?.current) return;
+    const map = mapRef.current;
+    const { lng, lat } = position;
+    setIsScanningHazards(true);
+    try {
+      // Temporary: Populate landslide intensity with random value (0-50 to avoid exaggeration)
+      const landslideIntensityValue = Math.floor(Math.random() * 51); // 0-50
+      setLandslideIntensity(landslideIntensityValue);
+      setLandslideDistance(landslideIntensityValue > 0 ? (100 - landslideIntensityValue) : null);
+
+      // Temporary: Populate flood distance with random value (0.5-2 km to avoid exaggeration)
+      const floodDistanceValue = Math.random() * 1.5 + 0.5; // 0.5 to 2 km
+      setFloodDistance(floodDistanceValue);
+
+      // Scan fault lines (LineString) - query source directly for reliability
+      try {
+        console.log("[Fault Scan] Starting fault line scan...");
+        console.log("[Fault Scan] Layer ID:", FAULT_LINE_LAYER);
+        
+        // Check if layer exists
+        const layer = map.getLayer(FAULT_LINE_LAYER);
+        console.log("[Fault Scan] Layer exists:", !!layer, "Source:", layer?.source);
+        
+        // First try rendered features (fast, respects current viewport)
+        let faultFeatures = map.queryRenderedFeatures({ layers: [FAULT_LINE_LAYER] });
+        console.log("[Fault Scan] Rendered features found:", faultFeatures.length);
+        // If no rendered features, try querying the source directly
+        if (faultFeatures.length === 0 && layer?.source) {
+          console.log("[Fault Scan] Trying querySourceFeatures for source:", layer.source);
+          faultFeatures = map.querySourceFeatures(layer.source as string);
+          console.log("[Fault Scan] Source features found:", faultFeatures.length);
+          
+          // Filter to only fault line features (LineString or MultiLineString)
+          faultFeatures = faultFeatures.filter((f) => {
+            const props = f.properties as Record<string, unknown>;
+            const name = (props?.name as string) || "";
+            const type = f.geometry?.type;
+            const matches = name.toLowerCase().includes("fault") ||
+                   type === "LineString" || type === "MultiLineString";
+            console.log("[Fault Scan] Feature:", name, "Type:", type, "Matches:", matches);
+            return matches;
+          });
+          console.log("[Fault Scan] After filtering:", faultFeatures.length);
+        }
+        if (faultFeatures.length > 0) {
+          const faultCollection: GeoJSONCollection = {
+            type: "FeatureCollection",
+            features: faultFeatures
+              .filter((f) => f.geometry?.type === "LineString")
+              .map((f) => ({
+                type: "Feature" as const,
+                geometry: f.geometry as any,
+                properties: f.properties || {},
+              })),
+          };
+          console.log("[Fault Scan] Calling findNearestHazardLine with", faultCollection.features.length, "features");
+          const result = findNearestHazardLine([lng, lat], faultCollection);
+          console.log("[Fault Scan] Result:", result);
+          if (result.distance !== Infinity) {
+            console.log("[Fault Scan] Setting faultDistance to:", Math.round(result.distance * 1000) / 1000);
+            setFaultDistance(Math.round(result.distance * 1000) / 1000);
+          } else {
+            console.warn("[Fault Scan] No fault line found nearby (distance Infinity)");
+          }
+         } else {
+          console.warn("[Fault Scan] No fault line features found in map");
+        }
+      } catch (e) {
+        console.error("[Fault Scan] Error scanning fault lines:", e);
+      }
+
+      // Scan for volcanoes (Point features) - dummy data for visualization
+      try {
+        console.log("[Volcano Scan] Starting volcano scan...");
+        // Try to query volcano layer if it exists
+        const volcanoFeatures = map.queryRenderedFeatures({ layers: ["Volcanoes"] });
+        console.log("[Volcano Scan] Rendered volcano features found:", volcanoFeatures.length);
+        
+        // Dummy volcano data for visualization (within 50km radius)
+        // In production, this would come from real geologic dataset (PHIVOLCS)
+        const DUMMY_VOLCANO_DATA = [
+          { name: "Mayon", distance: 12 + Math.random() * 8, risk: 75 },
+          { name: "Taal", distance: 25 + Math.random() * 10, risk: 68 },
+          { name: "Kanlaon", distance: 18 + Math.random() * 15, risk: 72 },
+          { name: "Bulusan", distance: 30 + Math.random() * 12, risk: 60 },
+          { name: "Hibok-Hibok", distance: 45 + Math.random() * 5, risk: 45 },
+          { name: "Iriga", distance: 55 + Math.random() * 10, risk: 20 },
+          { name: "Arayat", distance: 65 + Math.random() * 8, risk: 10 },
+        ];
+        
+        const RADIUS_KM = 50;
+        const nearby = DUMMY_VOLCANO_DATA.filter(v => v.distance <= RADIUS_KM);
+        setVolcanoCount(nearby.length);
+        setActiveVolcanoes(nearby.map(v => ({ name: v.name, distanceKm: v.distance, risk: v.risk })));
+        console.log(`[Volcano Scan] Found ${nearby.length} volcanoes within ${RADIUS_KM}km`);
+      } catch (e) {
+        console.error("[Volcano Scan] Error scanning volcanoes:", e);
+      }
+    } catch (e) {
+      console.error("Error scanning hazards:", e);
+    } finally {
+      setIsScanningHazards(false);
+    }
+  }, [isOpen, position, mapRef]);
+  const getLocationAddress = useCallback(async () => {
+    if (!isOpen || !position) return;
+    await getAddress(position.lng, position.lat);
+  }, [isOpen, position, getAddress]);
+  useEffect(() => {
+    if (!isOpen || !mapRef?.current) {
+      setNearestElementary(null);
+      setNearestHigherEd(null);
+       setElementaryDirections({ walking: null, driving: null });
+      setHigherEdDirections({ walking: null, driving: null });
+      setFaultDistance(null);
+      setFloodDistance(null);
+      setLandslideDistance(null);
+      setLandslideIntensity(null);
+      setVolcanoCount(0);
+      setActiveVolcanoes([]);
+      setLocationAddress(null);
+      return;
+    }
+    const timer = setTimeout(scanForFacilities, 100);
+    return () => clearTimeout(timer);
+  }, [isOpen, scanForFacilities, mapRef]);
+  useEffect(() => {
+    if (!isOpen || !position || !mapRef?.current) return;
+    const timer = setTimeout(scanForHazards, 150);
+    return () => clearTimeout(timer);
+  }, [isOpen, position, scanForHazards, mapRef]);
+  useEffect(() => {
+    if (!isOpen || !position) return;
+    const timer = setTimeout(getLocationAddress, 50);
+    return () => clearTimeout(timer);
+  }, [isOpen, position, getLocationAddress]);
+  useEffect(() => {
+    if (!isOpen) {
+      setIncomeDataState(null);
+      return;
+    }
+    const locationName = getValue(titleKey || "name");
+    if (locationName || locationAddress) {
+      const incomeData = findIncomeData(locationName || '', locationAddress);
+      setIncomeDataState(incomeData);
+    }
+  }, [isOpen, properties, titleKey, locationAddress]);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (isOpen) dialog.showModal();
+    else dialog.close();
+  }, [isOpen]);
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+  const getValue = (key: string): string => {
+    const value = properties[key];
+    if (typeof value === "string") return value;
+    if (value == null) return "";
+    return String(value);
+  };
+  const title = titleKey ? getValue(titleKey) : "";
+  const descriptionFields = descriptionKeys
+    .filter((key) => getValue(key).trim())
+    .map((key) => ({
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+      value: getValue(key),
+    }));
+
+  // ─── Typography system (GeoDotica-informed scale) ────────────────────
+  // base: 16px (body), modular scale 1.25
+  const textSize = {
+    label: "text-[10px] uppercase tracking-wider font-semibold",
+    body: "text-sm",
+    heading: "text-lg font-bold",
+    display: "text-2xl font-black",
+  } as const;
+  if (!isOpen) return null;
+  return (
+    <dialog
+      ref={dialogRef}
+      className="backdrop:bg-black/50 m-auto border-0 bg-transparent p-0 shadow-none backdrop:fixed backdrop:inset-0"
+      onClick={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isInDialog =
+          e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (!isInDialog) onClose();
+      }}
+    >
+      {/* Do Not Change the width and the Height */}
+      <div className="w-250 h-250 flex flex-col bg-white shadow-2xl overflow-hidden">
+         {/* Header */}
+         <div className="flex items-start justify-between px-5 py-4 border-b border-gray-100 bg-white/95 backdrop-blur flex-shrink-0 gap-3">
+           <div className="min-w-0 flex-1">
+             {/* Feature / Location name – highlighted */}
+             <h2 className="text-xl font-black text-gray-900 tracking-tight mb-2">
+               {title}
+             </h2>
+             {/* Administrative hierarchy: province/region emphasized */}
+             {incomeDataState && incomeDataState.location && (
+               <div className="mb-2">
+                 <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-0.5">
+                   {incomeDataState.location.includes('(Provincial)') ? 'Province / Region' : 'Location'}
+                 </p>
+                 <p className="text-base font-bold text-[#0F3A64] leading-tight">
+                   {incomeDataState.location.replace(' (Provincial)', '')}
+                 </p>
+               </div>
+             )}
+             {/* Address line */}
+             {locationAddress && (
+               <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{locationAddress}</p>
+             )}
+           </div>
+           <button
+             type="button"
+             onClick={onClose}
+             className="text-gray-300 hover:text-gray-600 transition-colors flex-shrink-0 mt-0.5"
+             aria-label="Close"
+           >
+             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+             </svg>
+           </button>
+         </div>
+        {/* Tab Navigation - refined */}
+        <div className="flex gap-0 px-5 pt-0 bg-white flex-shrink-0 border-b border-gray-100">
+          {(
+            [
+              { key: "overview", label: "Overview", color: "blue" },
+              { key: "hazards", label: "Hazards", color: "red" },
+              { key: "economy", label: "Economy", color: "green" },
+              { key: "education", label: "Education", color: "purple" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all relative ${
+                activeTab === tab.key
+                  ? `text-${tab.color}-600`
+                  : "text-gray-400 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.key && (
+                <div className={`absolute bottom-0 left-2 right-2 h-0.5 bg-${tab.color}-600 rounded-full`} />
+              )}
+            </button>
+          ))}
+        </div>
+        {/* Tab Content */}
+        <div className="overflow-y-auto flex-1">
+            {/* OVERVIEW TAB */}
+            {activeTab === "overview" && (
+              <div className="p-5 space-y-5">
+                {/* Location / Address */}
+                {incomeDataState && (
+                  <div className="text-center pb-2 border-b border-gray-100">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-2">Location</p>
+                    <p className="text-2xl font-black text-[#0F3A64] leading-tight tracking-tight">
+                      {incomeDataState.location.replace(' (Provincial)', '')}
+                    </p>
+                    {incomeDataState.location.includes('(Provincial)') && (
+                      <span className="inline-block text-[10px] font-semibold uppercase tracking-[0.1em] text-[#0F3A64] bg-[#0F3A64]/10 px-3 py-0.75 rounded-full border border-[#0F3A64]/20 mt-1.5">
+                        Provincial / Municipality Economy
+                      </span>
+                    )}
+                  </div>
+                )}
+                {locationAddress && (
+                  <div className="text-center pb-2">
+                    <p className="text-xs text-gray-500 leading-relaxed max-w-md mx-auto line-clamp-2">{locationAddress}</p>
+                  </div>
+                )}
+               {/* Dynamic Risk Overview from Hazards */}
+               <div className="flex flex-col items-center py-4">
+                 <div className="text-center">
+                   <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-2">Overall Risk Score</p>
+                   <div className="flex items-center justify-center gap-4">
+                     <div className="text-center">
+                       <p className="text-4xl font-black text-gray-900 tabular-nums">
+                         {faultDistance !== null || floodDistance !== null || landslideIntensity !== null
+                           ? Math.round(
+                               ((faultDistance !== null ? Math.max(0, 100 - faultDistance * 100) : 0) +
+                               (floodDistance !== null ? Math.max(0, 100 - floodDistance * 50) : 0) +
+                               (landslideIntensity !== null ? landslideIntensity : 0)
+                             ) / 3
+                             )
+                           : "--"}
+                       </p>
+                       <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mt-1">Score out of 100</p>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+              {/* Thin divider */}
+               <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+               {/* Quick Stats - unified horizontal layout */}
+               <div className="space-y-4">
+                 <div className="flex items-end justify-center gap-8">
+                   {/* Avg Income */}
+                   <div className="text-center flex-1">
+                     <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1.5">Average Monthly Income</p>
+                     <p className="text-2xl font-black text-[#2FB290]">
+                       {incomeDataState ? `₱${(incomeDataState.avgIncome / 1000).toFixed(0)}k` : 'N/A'}
+                     </p>
+                     <Sparkline
+                       data={incomeDataState ? [300, 320, 310, 340, incomeDataState.avgIncome / 1000] : [300, 320, 310, 340, 350]}
+                       width={80}
+                       height={22}
+                       color="#2FB290"
+                     />
+                   </div>
+                   {/* Growth */}
+                   <div className="text-center flex-1">
+                     <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1.5">Income Growth (2021–2023)</p>
+                     <p className="text-2xl font-black text-[#2A94A0]">
+                       {incomeDataState ? `${incomeDataState.percentChange > 0 ? '+' : ''}${incomeDataState.percentChange.toFixed(1)}%` : 'N/A'}
+                     </p>
+                     <Sparkline
+                       data={incomeDataState ? [10, 12, 11, 13, incomeDataState.percentChange] : [10, 12, 11, 13, 15]}
+                       width={80}
+                       height={22}
+                       color="#2A94A0"
+                     />
+                   </div>
+                   {/* Inequality */}
+                   <div className="text-center flex-1">
+                     <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1.5">Income Inequality</p>
+                     <p className="text-2xl font-black text-[#70D2AE]">
+                       {incomeDataState ? `${incomeDataState.incomeInequality.toFixed(1)}×` : 'N/A'}
+                     </p>
+                     <Sparkline
+                       data={incomeDataState ? [2.5, 3.0, 2.8, 3.2, incomeDataState.incomeInequality] : [2.5, 3.0, 2.8, 3.2, 3.5]}
+                       width={80}
+                       height={22}
+                       color="#70D2AE"
+                     />
+                   </div>
+                 </div>
+               </div>
+               <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+               {/* AI Summary – subtle section */}
+               <div className="pt-2">
+                 <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-2 text-center">AI Insight</p>
+                 <AISummary summary={"This is a sample AI-generated summary: Overall risk moderate (34). Key hazards: Fault (45) nearest at 320m; Flood (35) within 850m. Recommend local engagement and monitoring; check evacuation routes near flood-prone zones."} />
+               </div>
+            </div>
+          )}
+          {/* HAZARDS TAB - horizontal bars instead of cards */}
+          {activeTab === "hazards" && (
+               <div className="p-5 space-y-4">
+                 <div className="text-center pb-2 border-b border-gray-100">
+                   <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Hazard Risk Assessment</p>
+                 </div>
+                {/* Overall Risk Calculation */}
+                <div className="flex items-center gap-3 py-2">
+                  <div className="flex-1">
+                    {(() => {
+                      const faultScore = faultDistance !== null ? Math.max(0, 100 - faultDistance * 100) : 0;
+                      const floodScore = floodDistance !== null ? Math.max(0, 100 - floodDistance * 50) : 0;
+                      const landsSlideScore = landslideIntensity !== null ? landslideIntensity : 0;
+                      const volcanoScore = volcanoCount > 0 ? Math.min(100, activeVolcanoes.reduce((a, v) => a + v.risk, 0) / activeVolcanoes.length * (volcanoCount >= 3 ? 1.2 : 1)) : 0;
+                      const overallScore = Math.round((faultScore + floodScore + landsSlideScore + volcanoScore) / 4);
+                      const color = overallScore >= 70 ? "text-red-600" : overallScore >= 40 ? "text-yellow-600" : "text-green-600";
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Overall Risk</span>
+                            <span className={`text-lg font-black ${color}`}>
+                              {overallScore}
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 transition-all duration-1000"
+                              style={{ width: `${overallScore}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  {/* Volcano Count Gauge */}
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="relative" style={{ width: 60, height: 60 }}>
+                      <svg width={60} height={60} className="transform -rotate-90" viewBox="0 0 60 60">
+                        <circle cx={30} cy={30} r={24} stroke="#e5e7eb30" strokeWidth={8} fill="none" />
+                        <circle
+                          cx={30}
+                          cy={30}
+                          r={24}
+                          stroke={volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a"}
+                          strokeWidth={8}
+                          fill="none"
+                          strokeDasharray={`${Math.min(volcanoCount / 5 * 150, 150)} 150`}
+                          strokeLinecap="round"
+                          className="transition-all duration-1000"
+                          opacity={0.85}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-lg font-black" style={{ color: volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a" }}>
+                          {volcanoCount}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[9px] text-gray-500 font-semibold uppercase tracking-wider">Volcanoes ≤50km</span>
+                  </div>
+                </div>
+                <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-3" />
+                {/* Dynamic Hazard Distances */}
+                <div className="space-y-4">
+                {/* Active Fault */}
+                <div className="group relative pl-3 border-l-2 border-red-100 hover:border-l-red-400 transition-colors">
+                  <RiskBar
+                    label="Active Fault"
+                    score={faultDistance !== null ? Math.max(0, 100 - faultDistance * 100) : 0}
+                    distance={faultDistance !== null ? formatDistance(faultDistance * 1000) : "N/A"}
+                  />
+                   <p className="text-[11px] text-gray-500 mt-1 ml-0.5 leading-relaxed">
+                     {faultDistance !== null
+                       ? faultDistance < 0.5
+                         ? `Within ${formatDistance(faultDistance * 1000)} of fault line`
+                         : `${formatDistance(faultDistance * 1000)} from nearest fault`
+                       : "No fault line data available"}
+                   </p>
+                </div>
+                {/* Flood Zone */}
+                <div className="group relative pl-3 border-l-2 border-blue-100 hover:border-l-blue-400 transition-colors">
+                  <RiskBar
+                    label="Flood Zone"
+                    score={floodDistance !== null ? Math.max(0, 100 - floodDistance * 50) : 0}
+                    distance={floodDistance !== null ? formatDistance(floodDistance * 1000) : "N/A"}
+                  />
+                   <p className="text-[11px] text-gray-500 mt-1 ml-0.5 leading-relaxed">
+                     {floodDistance !== null
+                       ? floodDistance === 0
+                         ? "Within flood zone"
+                         : `${formatDistance(floodDistance * 1000)} from flood zone`
+                       : "No flood zone data available"}
+                   </p>
+                </div>
+                {/* Landslide Area (GeoTIFF) */}
+                <div className="group relative pl-3 border-l-2 border-yellow-100 hover:border-l-yellow-400 transition-colors">
+                  <RiskBar
+                    label="Landslide Hazard"
+                    score={landslideIntensity !== null ? landslideIntensity : 0}
+                    distance={landslideIntensity !== null ? `${landslideIntensity}% intensity` : "N/A"}
+                  />
+                   <p className="text-[11px] text-gray-500 mt-1 ml-0.5 leading-relaxed">
+                     {landslideIntensity !== null
+                       ? `Hazard intensity: ${landslideIntensity}%`
+                       : "No landslide data available"}
+                   </p>
+                 </div>
+               </div>
+                {/* Volcano Risk – visual representation */}
+                <div className="pt-3 pb-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-2 h-6 rounded-full bg-gradient-to-b from-[#f97316] to-[#dc2626]" />
+                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Active Volcanoes Within 50 km</p>
+                    <span className="ml-auto text-xs font-black text-[#dc2626] bg-red-50 px-2 py-1 rounded-sm border border-red-100">
+                      {volcanoCount} total
+                    </span>
+                  </div>
+                      {activeVolcanoes.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            {activeVolcanoes.map((v, i) => (
+                              <div key={i} className="flex items-center gap-2.5">
+                                <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#f97316] to-[#dc2626] flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-semibold text-gray-700 truncate pr-2">{v.name}</span>
+                                    <span className="text-[10px] font-mono text-gray-500 flex-shrink-0">
+                                      {v.distanceKm.toFixed(0)} km
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full transition-all duration-1000"
+                                      style={{
+                                        width: `${(1 - v.distanceKm / 80) * 100}%`,
+                                        background: v.risk >= 70
+                                          ? 'linear-gradient(90deg, #dc2626, #ef4444)'
+                                          : v.risk >= 40
+                                          ? 'linear-gradient(90deg, #f97316, #fb923c)'
+                                          : 'linear-gradient(90deg, #f59e0b, #fbbf24)',
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end flex-shrink-0 ml-1">
+                                  <span className={`text-[10px] font-black ${v.risk >= 70 ? 'text-red-600' : v.risk >= 40 ? 'text-orange-600' : 'text-yellow-600'}`}>
+                                    R{v.risk}
+                                  </span>
+                                  <span className="text-[9px] text-gray-400 font-mono">risk</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-2 border-t border-gray-100">
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Average Volcano Risk</span>
+                              <span className="text-sm font-black text-[#f97316]">
+                                {Math.round(activeVolcanoes.reduce((a, v) => a + v.risk, 0) / activeVolcanoes.length)}%
+                              </span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-orange-400 via-red-500 to-red-600"
+                                style={{
+                                  width: `${activeVolcanoes.reduce((a, v) => a + v.risk, 0) / activeVolcanoes.length}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500">No active volcanoes within 50 km radius</p>
+                        </div>
+                       )}
+                </div>
+                {/* Risk Scale – horizontal indicator */}
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="flex items-center gap-1 h-2 rounded-full overflow-hidden bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 opacity-70 mt-2" />
+                  <div className="flex justify-between mt-2 text-[9px] text-gray-500 font-mono uppercase tracking-wide">
+                    <span>0</span>
+                    <span>Low 0–39</span>
+                    <span>Mod 40–69</span>
+                    <span>High 70+</span>
+                    <span>100</span>
+                  </div>
+                </div>
+            </div>
+          )}
+              {/* ECONOMY TAB */}
+              {activeTab === "economy" && (
+                <div className="p-5 space-y-6">
+                  {/* Section header */}
+                  <div className="text-center pb-2 border-b border-gray-100">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-2">Income Indicators</p>
+                    {incomeDataState && (
+                      <div className="flex flex-col items-center gap-1.5 mt-1">
+                        <p className="text-2xl font-black text-[#0F3A64] leading-none tracking-tight">
+                          {incomeDataState.location.replace(' (Provincial)', '')}
+                        </p>
+                        {incomeDataState.location.includes('(Provincial)') && (
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#0F3A64] bg-[#0F3A64]/10 px-3 py-0.75 rounded-full border border-[#0F3A64]/20">
+                            Provincial Economy
+                          </span>
+                        )}
+                      </div>
+                    )}
+                      </div>
+                    )}
+                  </div>
+               {/* Income Data */}
+               {incomeDataState ? (
+                 <div className="space-y-5">
+                   {/* Average Monthly Income */}
+                   <div className="pb-3 border-b border-gray-50">
+                     <div className="flex items-center justify-between mb-2">
+                       <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Average Monthly Income</span>
+                       <span className="text-2xl font-black text-[#2FB290]">
+                         ₱{incomeDataState.avgIncome.toLocaleString()}
+                       </span>
+                     </div>
+                     <p className="text-[11px] text-gray-400 mb-2">Typical household earnings per month</p>
+                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className="h-full bg-gradient-to-r from-[#70D2AE] to-[#2FB290] rounded-full transition-all duration-1000"
+                         style={{ width: `${Math.min((incomeDataState.avgIncome / 50000) * 100, 100)}%` }}
+                       />
+                     </div>
+                     <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
+                       <span>₱0</span>
+                       <span>₱25k</span>
+                       <span>₱50k</span>
+                     </div>
+                   </div>
+                   {/* Income Growth */}
+                   <div className="pb-3 border-b border-gray-50">
+                     <div className="flex items-center justify-between mb-2">
+                       <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Income Growth (2021–2023)</span>
+                       <span className={`text-2xl font-black ${incomeDataState.percentChange > 0 ? 'text-[#2FB290]' : 'text-red-600'}`}>
+                         {incomeDataState.percentChange > 0 ? '+' : ''}{incomeDataState.percentChange.toFixed(1)}%
+                       </span>
+                     </div>
+                     <p className="text-[11px] text-gray-400 mb-2">How fast wages changed over 2 years</p>
+                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className={`h-full rounded-full transition-all duration-1000 ${incomeDataState.percentChange >= 0
+                             ? 'bg-gradient-to-r from-[#2A94A0] to-[#2FB290]'
+                             : 'bg-gradient-to-r from-red-400 to-red-600'
+                           }`}
+                         style={{ width: `${Math.min(Math.abs(incomeDataState.percentChange) * 2, 100)}%` }}
+                       />
+                     </div>
+                     <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
+                       <span>0%</span>
+                       <span>25%</span>
+                       <span>50%</span>
+                     </div>
+                   </div>
+                   {/* Income Inequality */}
+                   <div className="pb-3 border-b border-gray-50">
+                     <div className="flex items-center justify-between mb-2">
+                       <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Income Inequality</span>
+                       <span className="text-2xl font-black text-[#70D2AE]">{incomeDataState.incomeInequality.toFixed(1)}×</span>
+                     </div>
+                     <p className="text-[11px] text-gray-400 mb-2">Gap between richest and poorest households</p>
+                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className="h-full bg-gradient-to-r from-green-400 via-[#2FB290] to-[#70D2AE] rounded-full transition-all duration-1000"
+                         style={{ width: `${Math.min(incomeDataState.incomeInequality * 10, 100)}%` }}
+                       />
+                     </div>
+                     <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
+                       <span>1×</span>
+                       <span>5×</span>
+                       <span>10×</span>
+                     </div>
+                   </div>
+                   {/* Income Range */}
+                   <div className="pb-3">
+                     <div className="flex items-center justify-between mb-2">
+                       <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Income Range</span>
+                       <span className="text-base font-bold text-gray-700">
+                         ₱{incomeDataState.lowestDecile.toLocaleString()} – ₱{incomeDataState.highestDecile.toLocaleString()}
+                       </span>
+                     </div>
+                     <p className="text-[11px] text-gray-400 mb-2">Poorest to richest households</p>
+                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                       <div
+                         className="h-full bg-gradient-to-r from-[#0F3A64] via-[#2A94A0] to-[#70D2AE] rounded-full transition-all duration-1000"
+                         style={{ width: `${Math.min((incomeDataState.highestDecile / 100000) * 100, 100)}%` }}
+                       />
+                     </div>
+                     <div className="flex justify-between mt-1.5 text-[10px] text-gray-400 font-mono">
+                       <span>₱0</span>
+                       <span>₱50k</span>
+                       <span>₱100k</span>
+                     </div>
+                   </div>
+                      <p className="text-xs text-gray-400 mb-1">Typical household earnings per month</p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-yellow-400 to-green-500 rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min((incomeDataState.avgIncome / 50000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[9px] text-gray-400">
+                        <span>₱0</span>
+                        <span>₱25k</span>
+                        <span>₱50k</span>
+                      </div>
+                    </div>
+                    {/* Income Growth */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-gray-700">Income Growth (2021-2023)</span>
+                        <span className={`text-lg font-black ${incomeDataState.percentChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {incomeDataState.percentChange > 0 ? '+' : ''}{incomeDataState.percentChange.toFixed(1)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-1">How fast wages changed over 2 years</p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ${
+                            incomeDataState.percentChange > 0 ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gradient-to-r from-red-400 to-red-600'
+                          }`}
+                          style={{ width: `${Math.min(Math.abs(incomeDataState.percentChange) * 2, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[9px] text-gray-400">
+                        <span>0%</span>
+                        <span>25%</span>
+                        <span>50%</span>
+                      </div>
+                    </div>
+                    {/* Income Inequality */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-gray-700">Income Inequality</span>
+                        <span className="text-lg font-black" style={{ color: '#2A94A0' }}>{incomeDataState.incomeInequality.toFixed(1)}x</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-1">Gap between richest and poorest households</p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-400 to-orange-500 rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min(incomeDataState.incomeInequality * 10, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[9px] text-gray-400">
+                        <span>1x</span>
+                        <span>5x</span>
+                        <span>10x</span>
+                      </div>
+                    </div>
+{/* Income Distribution */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-gray-700">Income Range</span>
+                        <span className="text-sm font-bold text-gray-600">
+                          ₱{incomeDataState.lowestDecile.toLocaleString()} - ₱{incomeDataState.highestDecile.toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mb-1">Poorest to richest households</p>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full transition-all duration-1000"
+                          style={{ width: `${Math.min((incomeDataState.highestDecile / 100000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-[9px] text-gray-400">
+                        <span>₱0</span>
+                        <span>₱50k</span>
+                        <span>₱100k</span>
+                      </div>
+                    </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-500">Loading income data...</p>
+                </div>
+              )}
+               <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent" />
+               {/* Income Distribution Chart */}
+               {incomeDataState && (
+                 <div className="pt-2">
+                   <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mb-3 text-center">Income Distribution</p>
+                   <p className="text-xs text-gray-400 mb-3 text-center">How income is spread across households</p>
+                   <MiniBarChart
+                     data={[
+                       { label: "Low", value: incomeDataState.lowestDecile / 1000, color: "#2A94A0" },
+                       { label: "Avg", value: incomeDataState.avgIncome / 1000, color: "#2FB290" },
+                       { label: "High", value: incomeDataState.highestDecile / 1000, color: "#70D2AE" },
+                     ]}
+                     height={56}
+                   />
+                 </div>
+               )}
+            </div>
+          )}
+           {/* EDUCATION TAB */}
+           {activeTab === "education" && (
+             <div className="p-5 space-y-4">
+               <div className="text-center pb-2 border-b border-gray-100">
+                 <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Education Facilities</p>
+               </div>
+              {isSearching && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="animate-spin h-3 w-3 border-2 border-blue-400 border-t-transparent rounded-full" />
+                  <span>Scanning facilities...</span>
+                </div>
+              )}
+              {error && (
+                <div className="py-2">
+                  <p className="text-xs text-red-600">{error}</p>
+                </div>
+              )}
+               <div className="space-y-5">
+                 {/* Elementary School */}
+                 <div>
+                   <div className="flex items-center gap-2 mb-2.5">
+                     <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
+                     <h4 className="text-xs font-bold text-blue-700 uppercase tracking-wide">Elementary / Primary School</h4>
+                   </div>
+                   {nearestElementary && nearestElementary.facility ? (
+                     <div className="pl-3 space-y-2.5">
+                       <div>
+                         <p className="text-sm font-bold text-gray-900 leading-tight">{getFacilityName(nearestElementary.facility)}</p>
+                         <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Nearest Facility</p>
+                       </div>
+                      {/* Distance indicators - horizontal layout */}
+                       <div className="flex gap-4">
+                         <div className="flex-1">
+                           <div className="flex items-center gap-1.5 mb-1">
+                             <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Walking</span>
+                           </div>
+                           <p className="text-sm font-bold text-gray-800">
+                             {`${Math.round((elementaryDirections.walking?.distance || 0) / 10) / 100} km`}
+                           </p>
+                           <p className="text-[10px] text-gray-500">
+                             {Math.round((elementaryDirections.walking?.duration || 0) / 60)} min
+                           </p>
+                         </div>
+                         <div className="w-px bg-gray-100" />
+                         <div className="flex-1">
+                           <div className="flex items-center gap-1.5 mb-1">
+                             <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Driving</span>
+                           </div>
+                           <p className="text-sm font-bold text-gray-800">
+                             {`${Math.round((elementaryDirections.driving?.distance || 0) / 1000) || 0} km`}
+                           </p>
+                           <p className="text-[10px] text-gray-500">
+                             {Math.round((elementaryDirections.driving?.duration || 0) / 60)} min
+                           </p>
+                         </div>
+                       </div>
+                       {elementaryDirections.walking?.steps[0]?.instruction && (
+                         <p className="text-[11px] text-gray-500 italic border-l-2 border-blue-200 pl-2.5 py-0.5">
+                           {elementaryDirections.walking.steps[0].instruction}
+                         </p>
+                       )}
+                       {elementaryDirections.walking && (
+                         <button
+                           onClick={() => {
+                             if (shownPath?.type === "elementary" && shownPath?.profile === "walking") {
+                               setShownPath(null);
+                             } else {
+                               setShownPath({ type: "elementary", profile: "walking" });
+                               onShowRoute?.(elementaryDirections.walking!.geometry, "walking");
+                               onClose();
+                             }
+                           }}
+                           className={`w-full py-2 text-xs font-bold uppercase tracking-wider transition-all mt-2 ${
+                             shownPath?.type === "elementary" && shownPath?.profile === "walking"
+                               ? "bg-blue-600 text-white"
+                               : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                           }`}
+                         >
+                           {shownPath?.type === "elementary" && shownPath?.profile === "walking"
+                             ? "✓ Route Showing on Map"
+                             : "Show Walking Route on Map"}
+                         </button>
+                       )}
+                    </div>
+                   ) : (
+                     <div className="text-center py-6">
+                       <p className="text-sm text-gray-500">No elementary school found nearby</p>
+                     </div>
+                   )}
+                </div>
+                 <div className="h-px bg-gray-100" />
+                 {/* College / University */}
+                 <div>
+                   <div className="flex items-center gap-2 mb-2.5">
+                     <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
+                     <h4 className="text-xs font-bold text-purple-700 uppercase tracking-wide">College / University</h4>
+                   </div>
+                   {nearestHigherEd && nearestHigherEd.facility ? (
+                     <div className="pl-3 space-y-2.5">
+                       <div>
+                         <p className="text-sm font-bold text-gray-900 leading-tight">{getFacilityName(nearestHigherEd.facility)}</p>
+                         <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Nearest Facility</p>
+                       </div>
+                      <div className="flex gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] text-gray-400">🚶 Walk</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800">
+                            {`${Math.round((higherEdDirections.walking?.distance || 0) / 10) / 100} km`}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            {Math.round((higherEdDirections.walking?.duration || 0) / 60)} min
+                          </p>
+                        </div>
+                        <div className="w-px bg-gray-100" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[10px] text-gray-400">🚗 Drive</span>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800">
+                            {`${Math.round((higherEdDirections.driving?.distance || 0) / 1000) || 0} km`}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            {Math.round((higherEdDirections.driving?.duration || 0) / 60)} min
+                          </p>
+                        </div>
+                      </div>
+                      {higherEdDirections.walking?.steps[0]?.instruction && (
+                        <p className="text-[11px] text-gray-500 italic border-l-2 border-purple-200 pl-2">
+                          {higherEdDirections.walking.steps[0].instruction}
+                        </p>
+                      )}
+                       {higherEdDirections.walking && (
+                         <button
+                           onClick={() => {
+                             if (shownPath?.type === "higher" && shownPath?.profile === "walking") {
+                               setShownPath(null);
+                             } else {
+                               setShownPath({ type: "higher", profile: "walking" });
+                               onShowRoute?.(higherEdDirections.walking!.geometry, "walking");
+                               onClose();
+                             }
+                           }}
+                           className={`w-full py-2 text-xs font-bold uppercase tracking-wider transition-all mt-2 ${
+                             shownPath?.type === "higher" && shownPath?.profile === "walking"
+                               ? "bg-purple-600 text-white"
+                               : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                           }`}
+                         >
+                           {shownPath?.type === "higher" && shownPath?.profile === "walking"
+                             ? "✓ Route Showing on Map"
+                             : "Show Walking Route on Map"}
+                         </button>
+                       )}
+                    </div>
+                   ) : (
+                     <div className="text-center py-6">
+                       <p className="text-sm text-gray-500">No higher education institution found nearby</p>
+                     </div>
+                   )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </dialog>
+  );
+}

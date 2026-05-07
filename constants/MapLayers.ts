@@ -5,17 +5,6 @@ export type MapLayerCategory = {
 
 export const MAP_LAYER_CATEGORIES: MapLayerCategory[] = [
   {
-    name: "Hazards",
-    layers: [
-      "Bukidnon Landslide",
-      "Misamis Occidental Landslide",
-      "Misamis Oriental Landslide",
-      "Lanao Landslide",
-      "Camiguin Landslide",
-      "Active Fault",
-    ],
-  },
-  {
     name: "Population",
     layers: ["Populated Areas"],
   },
@@ -31,6 +20,18 @@ export const MAP_LAYER_CATEGORIES: MapLayerCategory[] = [
     name: "Land Profile",
     layers: ["Land Use"],
   },
+  {
+    name: "Hazards",
+    layers: [
+      "Bukidnon Landslide",
+      "Misamis Occidental Landslide",
+      "Misamis Oriental Landslide",
+      "Lanao Landslide",
+      "Camiguin Landslide",
+      "Active Fault",
+      "volcanoes",
+    ],
+  },
 ];
 
 export const MAP_LAYER_IDS = {
@@ -41,6 +42,7 @@ export const MAP_LAYER_IDS = {
     LANAO_LANDSLIDE: "Lanao Landslide",
     CAMIGUIN_LANDSLIDE: "Camiguin Landslide",
     ACTIVE_FAULT: "Active Fault",
+    VOLCANOES: "volcanoes",
   },
   POPULATION: {
     POPULATED_AREAS: "Populated Areas",

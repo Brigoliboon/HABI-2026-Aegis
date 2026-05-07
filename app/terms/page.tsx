@@ -37,7 +37,7 @@ export default function TermsPage() {
           <ul className="list-disc list-inside space-y-3 mb-6">
             <li>In any way that violates any applicable national or international law or regulation.</li>
             <li>For the purpose of exploiting, harming, or attempting to exploit or harm minors in any way.</li>
-            <li>To transmit or procure the sending of any advertising or promotional material, including any "junk mail", "chain letter," or "spam".</li>
+            <li>To transmit or procure the sending of any advertising or promotional material, including any &quot;junk mail&quot;, &quot;chain letter,&quot; or &quot;spam&quot;.</li>
             <li>To impersonate or attempt to impersonate the Service, Aegis personnel, another user, or any other person or entity.</li>
             <li>In any way that infringes upon the rights of others, or in any way is illegal, threatening, fraudulent, or harmful.</li>
           </ul>
