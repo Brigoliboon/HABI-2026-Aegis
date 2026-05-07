@@ -67,7 +67,7 @@ export const EducationTab: FC<EducationTabProps> = ({
       <div className="space-y-5">
         {/* Elementary School */}
         <FacilityCard
-          name={elementary ? getFacilityName(elementary.facility) : null}
+          name={elementary?.facility ? getFacilityName(elementary.facility) : null}
           type="elementary"
           walking={elementaryDirections.walking}
           driving={elementaryDirections.driving}
@@ -82,7 +82,7 @@ export const EducationTab: FC<EducationTabProps> = ({
 
         {/* College / University */}
         <FacilityCard
-          name={higherEd ? getFacilityName(higherEd.facility) : null}
+          name={higherEd?.facility ? getFacilityName(higherEd.facility) : null}
           type="higher-ed"
           walking={higherEdDirections.walking}
           driving={higherEdDirections.driving}

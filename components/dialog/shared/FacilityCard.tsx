@@ -4,7 +4,7 @@ import type { FC } from "react";
 import DirectionCard from "./DirectionCard";
 
 interface FacilityCardProps {
-  name: string;
+  name: string | null;
   type: "elementary" | "higher-ed";
   walking: { distance: number; duration: number; steps?: Array<{ instruction: string }> } | null;
   driving: { distance: number; duration: number } | null;

@@ -1,4 +1,6 @@
 import type { GeoJSON } from "geojson";
+import type { NearestFacilityResult } from "@/lib/nearestFacility";
+import type { RouteDirections } from "@/lib/facilityFinder";
 
 // ─── Feature Properties ─────────────────────────────────────────────────
 export type FeatureProperties = Record<string, unknown>;
@@ -32,7 +34,7 @@ export type FacilityDataState = {
 };
 
 // Re-export from nearestFacility for convenience
-export type { NearestFacilityResult, RouteDirections } from "@/lib/nearestFacility";
+export type { NearestFacilityResult, RouteDirections };
 
 // ─── Dialog Tabs ─────────────────────────────────────────────────────────
 export type DialogTab = "overview" | "hazards" | "economy" | "education";

@@ -1,4 +1,5 @@
 import * as turf from "@turf/turf";
+import type { Feature as GeoJSONFeature } from "geojson";
 
 export interface PointFeature {
   type: "Feature";
@@ -29,7 +30,7 @@ export interface LineFeature {
 
 export interface GeoJSONCollection {
   type: "FeatureCollection";
-  features: Array<PointFeature | PolygonFeature | LineFeature>;
+  features: Array<PointFeature | PolygonFeature | LineFeature | GeoJSON.Feature>;
 }
 
 export type FacilityType = "school" | "hospital" | "clinic" | "education";
