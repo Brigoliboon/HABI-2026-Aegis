@@ -21,6 +21,7 @@ interface EducationTabProps {
   higherEd: NearestFacilityResult | null;
   elementaryDirections: RouteDirections;
   higherEdDirections: RouteDirections;
+  unpavedOverlap: { walking: boolean; driving: boolean };
   onShowRoute: (geometry: GeoJSON.LineString, profile: "walking" | "driving") => void;
   isScanning?: boolean;
 }
@@ -30,6 +31,7 @@ export const EducationTab: FC<EducationTabProps> = ({
   higherEd,
   elementaryDirections,
   higherEdDirections,
+  unpavedOverlap,
   onShowRoute,
   isScanning = false,
 }) => {
@@ -69,6 +71,7 @@ export const EducationTab: FC<EducationTabProps> = ({
           type="elementary"
           walking={elementaryDirections.walking}
           driving={elementaryDirections.driving}
+          unpavedOverlap={unpavedOverlap}
           onShowWalkingRoute={() => handleShowRoute("elementary", "walking")}
           onShowDrivingRoute={() => handleShowRoute("elementary", "driving")}
           isWalkingRouteShowing={activeRoute?.facility === "elementary" && activeRoute?.profile === "walking"}
@@ -83,6 +86,7 @@ export const EducationTab: FC<EducationTabProps> = ({
           type="higher-ed"
           walking={higherEdDirections.walking}
           driving={higherEdDirections.driving}
+          unpavedOverlap={unpavedOverlap}
           onShowWalkingRoute={() => handleShowRoute("higher", "walking")}
           onShowDrivingRoute={() => handleShowRoute("higher", "driving")}
           isWalkingRouteShowing={activeRoute?.facility === "higher" && activeRoute?.profile === "walking"}

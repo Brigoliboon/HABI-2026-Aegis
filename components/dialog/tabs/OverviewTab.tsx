@@ -2,6 +2,7 @@
 
 import { FC } from "react";
 import SectionHeader from "../shared/SectionHeader";
+import { AISummaryMarkdown } from "../shared/AISummaryMarkdown";
 import type { IncomeData } from "../types";
 
 interface OverviewTabProps {
@@ -109,7 +110,7 @@ export const OverviewTab: FC<OverviewTabProps> = ({
             <span className="text-xs text-gray-500">Auto-generated</span>
           </div>
           <div className="text-xs text-gray-700 leading-relaxed">
-            <p>{aiSummary}</p>
+            <AISummaryMarkdown content={aiSummary} />
           </div>
         </div>
       </div>

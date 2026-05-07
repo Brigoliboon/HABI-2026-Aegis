@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { findIncomeData } from "@/lib/incomeLookup";
-import { generateAISummary } from "@/lib/ollama/client";
+import { generateAISummary } from "@/lib/openrouter/client";
+import { getFacilityName } from "@/lib/nearestFacility";
 import type {
   FeatureDialogProps,
   IncomeData,
@@ -63,6 +64,7 @@ export default function FeatureDialog({
     elementary,
     higherEd,
     directions,
+    unpavedOverlap,
     isScanning: facilityScanning,
   } = useFacilityScan(mapRef ?? null, position ?? null, isOpen);
 
@@ -149,9 +151,41 @@ export default function FeatureDialog({
     const fetchAISummary = async () => {
       setAiSummary("Generating AI summary...");
       try {
+        // Generate education summary text
+        let educationInfo = "No education facilities data available.";
+        if (elementary || higherEd) {
+          const elementaryName = elementary?.facility ? getFacilityName(elementary.facility) : null;
+          const higherEdName = higherEd?.facility ? getFacilityName(higherEd.facility) : null;
+
+          const facilities = [];
+          if (elementaryName) facilities.push(`nearest elementary school: ${elementaryName}`);
+          if (higherEdName) facilities.push(`nearest higher education institution: ${higherEdName}`);
+
+          const travelNotes = [];
+          if (elementary && directions.walking && unpavedOverlap.walking) {
+            travelNotes.push("walking route to elementary school may involve unpaved roads");
+          }
+          if (elementary && directions.driving && unpavedOverlap.driving) {
+            travelNotes.push("driving route to elementary school may involve unpaved roads");
+          }
+          if (higherEd && directions.walking && unpavedOverlap.walking) {
+            travelNotes.push("walking route to higher education facility may involve unpaved roads");
+          }
+          if (higherEd && directions.driving && unpavedOverlap.driving) {
+            travelNotes.push("driving route to higher education facility may involve unpaved roads");
+          }
+
+          educationInfo = facilities.length > 0
+            ? `Key education facilities include ${facilities.join(" and ")}.`
+            : "No specific education facilities identified.";
+
+          if (travelNotes.length > 0) {
+            educationInfo += ` Travel considerations: ${travelNotes.join("; ")}.`;
+          }
+        }
+
         const summary = await generateAISummary({
           location: address?address:'',
-          riskScore,
           hazardData: {
             faultDistance: hazardData.faultDistance,
             floodDistance: hazardData.floodDistance,
@@ -166,6 +200,7 @@ export default function FeatureDialog({
             lowestDecile: incomeData.lowestDecile,
             highestDecile: incomeData.highestDecile,
           },
+          educationInfo,
         });
         setAiSummary(summary);
       } catch (error) {
@@ -175,7 +210,7 @@ export default function FeatureDialog({
     };
 
     fetchAISummary();
-  }, [isOpen, incomeData, hazardData, riskScore]);
+  }, [isOpen, incomeData, hazardData, elementary, higherEd, address, directions.walking, directions.driving, unpavedOverlap.walking, unpavedOverlap.driving]);
 
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -280,6 +315,7 @@ export default function FeatureDialog({
               higherEd={higherEd}
               elementaryDirections={directions}
               higherEdDirections={directions}
+              unpavedOverlap={unpavedOverlap}
               onShowRoute={handleShowRoute}
               isScanning={facilityScanning}
             />

@@ -16,6 +16,10 @@ export function useFacilityScan(
     walking: null,
     driving: null,
   });
+  const [unpavedOverlap, setUnpavedOverlap] = useState<{ walking: boolean; driving: boolean }>({
+    walking: false,
+    driving: false,
+  });
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +37,7 @@ export function useFacilityScan(
       setElementary(result.elementary);
       setHigherEd(result.higherEd);
       setDirections(result.directions);
+      setUnpavedOverlap(result.unpavedOverlap);
     } catch (e) {
       console.error("Facility scan error:", e);
       setError("Failed to scan facilities");
@@ -49,6 +54,7 @@ export function useFacilityScan(
     elementary,
     higherEd,
     directions,
+    unpavedOverlap,
     isScanning,
     error,
     scan,

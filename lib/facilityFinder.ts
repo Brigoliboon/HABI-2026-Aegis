@@ -1,4 +1,5 @@
 import mapboxgl from "mapbox-gl";
+import * as turf from "@turf/turf";
 import {
   findNearestFacility,
   type NearestFacilityResult,
@@ -29,12 +30,12 @@ export interface DirectionsResult {
 
 // ─── Query a Mapbox layer for features ────────────────────────────────────
 /**
- * Query a layer on the map, optionally filtering by maki type.
+ * Query a layer on the map, optionally filtering by amenity type.
  *
  * @param map - Mapbox map instance
  * @param layerId - Map layer ID
- * @param typeFilter - Optional maki type filter (e.g. "school", "college")
- * @returns GeoJSONCollection of matching Point features, or null
+ * @param typeFilter - Optional amenity type filter (e.g. "school", "college")
+ * @returns GeoJSONCollection of matching features, or null
  */
 export function queryLayerForFacilities(
   map: mapboxgl.Map,
@@ -59,29 +60,42 @@ export function queryLayerForFacilities(
   if (typeFilter) {
     if (Array.isArray(typeFilter)) {
       filteredFeatures = features.filter((f) => {
-        const maki = (f.properties as Record<string, unknown>)?.maki as string | undefined;
-        return maki && typeFilter.includes(maki);
+        const amenity = (f.properties as Record<string, unknown>)?.amenity as string | undefined;
+        return amenity && typeFilter.includes(amenity);
       });
     } else {
       filteredFeatures = features.filter((f) => {
-        const maki = (f.properties as Record<string, unknown>)?.maki as string | undefined;
-        return maki === typeFilter;
+        const amenity = (f.properties as Record<string, unknown>)?.amenity as string | undefined;
+        return amenity === typeFilter;
       });
     }
+  } else {
+    // If no typeFilter, include all features (assuming the layer contains only schools)
+    filteredFeatures = features;
   }
 
-  if (filteredFeatures.length === 0) return null;
+  // Convert to GeoJSON FeatureCollection
+  // For facility layers (schools), we want only Point features
+  // For road layers, we want LineString features
+  const isFacilityLayer = layerId === "Schools";
+  const filteredByGeometry = filteredFeatures.filter((f) => {
+    if (isFacilityLayer) {
+      return f.geometry?.type === "Point";
+    } else {
+      // For roads, accept LineString and MultiLineString
+      return f.geometry?.type === "LineString" || f.geometry?.type === "MultiLineString";
+    }
+  });
 
-  // Convert to GeoJSON FeatureCollection of Points
+  if (filteredByGeometry.length === 0) return null;
+
   return {
     type: "FeatureCollection",
-    features: filteredFeatures
-      .filter((f) => f.geometry?.type === "Point")
-      .map((f) => ({
-        type: "Feature" as const,
-        geometry: f.geometry as GeoJSON.Point,
-        properties: f.properties || {},
-      })),
+    features: filteredByGeometry.map((f) => ({
+      type: "Feature" as const,
+      geometry: f.geometry as GeoJSON.Point | GeoJSON.LineString | GeoJSON.MultiLineString,
+      properties: f.properties || {},
+    })),
   };
 }
 
@@ -100,7 +114,7 @@ export function findNearest(
   return findNearestFacility(from, collection);
 }
 
-// ─── Fetch Directions ──────────────────────────────────────────────────────
+// ─── Fetch Directions ─────────────────────────────────────────────────────
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 /**
@@ -148,6 +162,10 @@ export interface ScanFacilitiesResult {
   elementary: NearestFacilityResult | null;
   higherEd: NearestFacilityResult | null;
   directions: RouteDirections;
+  unpavedOverlap: {
+    walking: boolean;
+    driving: boolean;
+  };
 }
 
 /**
@@ -170,6 +188,7 @@ export async function scanFacilities(
     elementary: null,
     higherEd: null,
     directions: { walking: null, driving: null },
+    unpavedOverlap: { walking: false, driving: false },
   };
 
   // ── Elementary ──
@@ -200,6 +219,21 @@ export async function scanFacilities(
       // Only overwrite if not already set by elementary (same destination possible)
       if (!result.directions.walking) result.directions.walking = walking;
       if (!result.directions.driving) result.directions.driving = driving;
+    }
+  }
+
+  // Check overlap with unpaved roads
+  const unpavedCollection = queryLayerForFacilities(map, "Unpaved Road", null);
+  if (unpavedCollection) {
+    if (result.directions.walking) {
+      result.unpavedOverlap.walking = unpavedCollection.features.some((feature) =>
+        turf.booleanIntersects(result.directions.walking!.geometry, feature.geometry)
+      );
+    }
+    if (result.directions.driving) {
+      result.unpavedOverlap.driving = unpavedCollection.features.some((feature) =>
+        turf.booleanIntersects(result.directions.driving!.geometry, feature.geometry)
+      );
     }
   }
 

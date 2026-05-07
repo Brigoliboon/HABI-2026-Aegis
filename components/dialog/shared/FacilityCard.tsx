@@ -8,6 +8,7 @@ interface FacilityCardProps {
   type: "elementary" | "higher-ed";
   walking: { distance: number; duration: number; steps?: Array<{ instruction: string }> } | null;
   driving: { distance: number; duration: number } | null;
+  unpavedOverlap: { walking: boolean; driving: boolean };
   onShowWalkingRoute: () => void;
   onShowDrivingRoute?: () => void;
   isWalkingRouteShowing: boolean;
@@ -19,6 +20,7 @@ export const FacilityCard: FC<FacilityCardProps> = ({
   type,
   walking,
   driving,
+  unpavedOverlap,
   onShowWalkingRoute,
   onShowDrivingRoute,
   isWalkingRouteShowing,
@@ -67,6 +69,7 @@ export const FacilityCard: FC<FacilityCardProps> = ({
               onShowRoute={onShowWalkingRoute}
               isShowing={isWalkingRouteShowing}
               variant="walking"
+              hasUnpavedOverlap={unpavedOverlap.walking}
             />
             <div className="w-px bg-gray-100" />
             <DirectionCard
@@ -76,6 +79,7 @@ export const FacilityCard: FC<FacilityCardProps> = ({
               onShowRoute={onShowDrivingRoute}
               isShowing={isDrivingRouteShowing}
               variant="driving"
+              hasUnpavedOverlap={unpavedOverlap.driving}
             />
           </div>
         </div>

@@ -10,6 +10,7 @@ interface DirectionCardProps {
   onShowRoute?: () => void;
   isShowing?: boolean;
   variant?: "walking" | "driving";
+  hasUnpavedOverlap?: boolean;
 }
 
 export const DirectionCard: FC<DirectionCardProps> = ({
@@ -20,6 +21,7 @@ export const DirectionCard: FC<DirectionCardProps> = ({
   onShowRoute,
   isShowing = false,
   variant = "walking",
+  hasUnpavedOverlap = false,
 }) => {
   const distanceKm = variant === "walking" ? distance / 100 : distance / 1000;
   const distanceDisplay =
@@ -42,6 +44,9 @@ export const DirectionCard: FC<DirectionCardProps> = ({
       </div>
       <p className="text-sm font-bold text-gray-800">{distanceDisplay}</p>
       <p className="text-[10px] text-gray-500">{minutes} min</p>
+      {hasUnpavedOverlap && (
+        <p className="text-[10px] text-orange-600 font-semibold">⚠️ Unpaved road</p>
+      )}
       {steps?.[0]?.instruction && (
         <p className="text-[11px] text-gray-500 italic border-l-2 border-blue-200 pl-2.5 py-0.5 mt-1 line-clamp-1">
           {steps[0].instruction}

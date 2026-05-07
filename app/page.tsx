@@ -60,7 +60,7 @@ export default function HomePage() {
                 Children Are Falling Through the Cracks
               </h1>
               <p className="text-xl sm:text-2xl text-white/90 leading-relaxed mb-8">
-                Millions can't read by age 10. The data exists to find them—but it's locked in separate silos. Education, poverty, nutrition, disaster—all disconnected.
+                Millions can&apos;t read by age 10. The data exists to find them—but it&apos;s locked in separate silos. Education, poverty, nutrition, disaster—all disconnected.
               </p>
               <p className="text-lg text-white/80 leading-relaxed mb-10 max-w-2xl">
                 By the time planners piece together the full picture, children have already dropped out. Communities have already been pushed past the point of recovery.
@@ -109,7 +109,7 @@ export default function HomePage() {
               The System Is Broken by Design
             </h2>
             <p className="text-neutral-600 max-w-3xl mx-auto text-lg">
-              Data exists. Solutions exist. What's missing is a system that connects education risk factors into one actionable picture.
+              Data exists. Solutions exist. What&apos;s missing is a system that connects education risk factors into one actionable picture.
             </p>
           </div>
 
@@ -357,7 +357,7 @@ export default function HomePage() {
               The Cost of Inaction
             </h2>
             <p className="text-white/80 max-w-2xl mx-auto text-lg">
-              Every day of delayed intervention means more children falling behind. GeoDotica turns data into action before it's too late.
+              Every day of delayed intervention means more children falling behind. GeoDotica turns data into action before it&apos;s too late.
             </p>
           </div>
 

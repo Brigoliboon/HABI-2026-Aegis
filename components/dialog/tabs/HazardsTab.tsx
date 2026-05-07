@@ -28,7 +28,11 @@ export const HazardsTab: FC<HazardsTabProps> = ({ hazardData, isScanning = false
             (volcanoCount >= 3 ? 1.2 : 1)
         )
       : 0;
-  const overallScore = Math.round((faultScore + floodScore + landslideScore + volcanoScore) / 4);
+
+  // Calculate overall score based on available hazard data
+  const scores = [faultScore, floodScore, landslideScore];
+  if (volcanoScore > 0) scores.push(volcanoScore);
+  const overallScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
 
   if (isScanning) {
     return (
@@ -68,39 +72,41 @@ export const HazardsTab: FC<HazardsTabProps> = ({ hazardData, isScanning = false
           </div>
         </div>
 
-        {/* Volcano Count Gauge */}
-        <div className="flex flex-col items-center gap-1">
-          <div className="relative" style={{ width: 60, height: 60 }}>
-            <svg width={60} height={60} className="transform -rotate-90" viewBox="0 0 60 60">
-              <circle cx={30} cy={30} r={24} stroke="#e5e7eb30" strokeWidth={8} fill="none" />
-              <circle
-                cx={30}
-                cy={30}
-                r={24}
-                stroke={volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a"}
-                strokeWidth={8}
-                fill="none"
-                strokeDasharray={`${Math.min((volcanoCount / 5) * 150, 150)} 150`}
-                strokeLinecap="round"
-                className="transition-all duration-1000"
-                opacity={0.85}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span
-                className="text-lg font-black"
-                style={{
-                  color: volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a",
-                }}
-              >
-                {volcanoCount}
-              </span>
+        {/* Volcano Count Gauge - Only show if volcanoes are detected */}
+        {volcanoCount > 0 && (
+          <div className="flex flex-col items-center gap-1">
+            <div className="relative" style={{ width: 60, height: 60 }}>
+              <svg width={60} height={60} className="transform -rotate-90" viewBox="0 0 60 60">
+                <circle cx={30} cy={30} r={24} stroke="#e5e7eb30" strokeWidth={8} fill="none" />
+                <circle
+                  cx={30}
+                  cy={30}
+                  r={24}
+                  stroke={volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a"}
+                  strokeWidth={8}
+                  fill="none"
+                  strokeDasharray={`${Math.min((volcanoCount / 5) * 150, 150)} 150`}
+                  strokeLinecap="round"
+                  className="transition-all duration-1000"
+                  opacity={0.85}
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span
+                  className="text-lg font-black"
+                  style={{
+                    color: volcanoCount >= 3 ? "#dc2626" : volcanoCount >= 1 ? "#f97316" : "#16a34a",
+                  }}
+                >
+                  {volcanoCount}
+                </span>
+              </div>
             </div>
+            <span className="text-[9px] text-gray-500 font-semibold uppercase tracking-wider">
+              Volcanoes ≤50km
+            </span>
           </div>
-          <span className="text-[9px] text-gray-500 font-semibold uppercase tracking-wider">
-            Volcanoes ≤50km
-          </span>
-        </div>
+        )}
       </div>
 
       <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-3" />
@@ -156,19 +162,19 @@ export const HazardsTab: FC<HazardsTabProps> = ({ hazardData, isScanning = false
         </div>
       </div>
 
-      {/* Volcano List */}
-      <div className="pt-3 pb-1">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-6 rounded-full bg-gradient-to-b from-[#f97316] to-[#dc2626]" />
-          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
-            Active Volcanoes Within 50 km
-          </p>
-          <span className="ml-auto text-xs font-black text-[#dc2626] bg-red-50 px-2 py-1 rounded-sm border border-red-100">
-            {volcanoCount} total
-          </span>
-        </div>
+      {/* Volcano List - Only show if volcanoes are detected */}
+      {volcanoCount > 0 && (
+        <div className="pt-3 pb-1">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-6 rounded-full bg-gradient-to-b from-[#f97316] to-[#dc2626]" />
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold">
+              Active Volcanoes Within 50 km
+            </p>
+            <span className="ml-auto text-xs font-black text-[#dc2626] bg-red-50 px-2 py-1 rounded-sm border border-red-100">
+              {volcanoCount} total
+            </span>
+          </div>
 
-        {activeVolcanoes.length > 0 ? (
           <div className="space-y-3">
             <div className="space-y-2">
               {activeVolcanoes.map((v, i) => (
@@ -234,10 +240,8 @@ export const HazardsTab: FC<HazardsTabProps> = ({ hazardData, isScanning = false
               </div>
             </div>
           </div>
-        ) : (
-          <EmptyState title="No active volcanoes within 50 km radius" />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Risk Scale */}
       <div className="pt-3 border-t border-gray-100">
