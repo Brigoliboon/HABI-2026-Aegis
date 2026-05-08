@@ -1,4 +1,4 @@
-# AGEIS Map Prototype
+# Geodotica Map Prototype
 
 Prototype web app for exploring the AGEIS dataset on an interactive Mapbox map.
 Built with Next.js (App Router) + Mapbox GL JS.
